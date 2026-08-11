@@ -1,0 +1,6 @@
+{
+  "name": "Plataforma de Autoestudio de Escritura y Lenguaje",
+  "description": "Plataforma web profesional para mejorar caligrafía, ortografía, gramática, redacción, comprensión lectora, velocidad de escritura y vocabulario con IA, gamificación y funcionamiento offline.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

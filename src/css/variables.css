@@ -1,0 +1,110 @@
+/* variables.css - Frosted Glass System Color Tokens & Typography */
+:root {
+  /* Color Palette - Light Frosted Glass */
+  --bg-primary: #0f172a;
+  --bg-secondary: rgba(255, 255, 255, 0.05);
+  --bg-tertiary: rgba(255, 255, 255, 0.08);
+  --bg-card: rgba(255, 255, 255, 0.06);
+  --bg-card-hover: rgba(255, 255, 255, 0.12);
+  --bg-glass: rgba(15, 23, 42, 0.75);
+
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+  --text-inverse: #0f172a;
+
+  --accent-primary: #6366f1;
+  --accent-primary-hover: #4f46e5;
+  --accent-primary-light: rgba(99, 102, 241, 0.2);
+  --accent-secondary: #10b981;
+  --accent-secondary-hover: #059669;
+  --accent-secondary-light: rgba(16, 185, 129, 0.2);
+  --accent-warning: #f59e0b;
+  --accent-danger: #f43f5e;
+
+  --border-color: rgba(255, 255, 255, 0.1);
+  --border-focus: #818cf8;
+
+  /* Gamification Tokens */
+  --xp-gold: #fbbf24;
+  --gem-cyan: #38bdf8;
+  --streak-fire: #fb923c;
+  --badge-bg: rgba(251, 191, 36, 0.15);
+
+  /* Typography & Spacing */
+  --font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --font-family-serif: 'Georgia', serif;
+  --font-family-mono: 'JetBrains Mono', monospace;
+  --font-family-dyslexic: 'OpenDyslexic', 'Comic Sans MS', sans-serif;
+
+  --font-size-base: 16px;
+  --line-height-base: 1.6;
+  --letter-spacing-base: 0.01em;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+  --radius-full: 9999px;
+
+  --shadow-sm: 0 2px 8px 0 rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 8px 24px -4px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 16px 36px -6px rgba(0, 0, 0, 0.4);
+  --shadow-glass: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 350ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Light Mode Soft Glass Overrides */
+[data-theme="light"] {
+  --bg-primary: #0f172a;
+  --bg-secondary: rgba(255, 255, 255, 0.05);
+  --bg-card: rgba(255, 255, 255, 0.06);
+  --border-color: rgba(255, 255, 255, 0.1);
+}
+
+/* High Contrast Mode */
+[data-mode="high-contrast"] {
+  --bg-primary: #000000;
+  --bg-secondary: #121212;
+  --bg-tertiary: #222222;
+  --bg-card: #000000;
+
+  --text-primary: #ffffff;
+  --text-secondary: #ffff00;
+  --text-muted: #00ffff;
+
+  --accent-primary: #ffff00;
+  --accent-primary-hover: #ffffff;
+  --accent-secondary: #00ff00;
+
+  --border-color: #ffffff;
+  --border-focus: #ffff00;
+}
+
+/* Kids Mode (Modo Infantil) */
+[data-mode="kids"] {
+  --font-family: 'Fredoka', 'Comic Sans MS', sans-serif;
+  --radius-md: 20px;
+  --radius-lg: 28px;
+  --accent-primary: #ff4757;
+  --accent-secondary: #2ed573;
+  --accent-warning: #ffa502;
+  --bg-primary: #0f172a;
+}
+
+/* Senior / Adulto Mayor Mode */
+[data-mode="senior"] {
+  --font-size-base: 20px;
+  --line-height-base: 1.8;
+  --letter-spacing-base: 0.03em;
+  --radius-md: 16px;
+  --border-color: rgba(255, 255, 255, 0.25);
+}
+
+/* Dyslexia Mode */
+[data-font="dyslexia"] {
+  --font-family: var(--font-family-dyslexic);
+}
