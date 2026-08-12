@@ -40,7 +40,6 @@ export class AnalyticsCharts {
   }
 
   static renderSkillsRadarChart(canvasId, skills = {
-    caligrafia: 85,
     ortografia: 90,
     gramatica: 75,
     redaccion: 80,
@@ -55,7 +54,7 @@ export class AnalyticsCharts {
     ctx._chartInstance = new Chart(ctx, {
       type: "radar",
       data: {
-        labels: ["Caligrafía", "Ortografía", "Gramática", "Redacción", "Comprensión", "Velocidad"],
+        labels: ["Ortografía", "Gramática", "Redacción", "Comprensión", "Velocidad"],
         datasets: [
           {
             label: "Dominio %",

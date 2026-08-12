@@ -2,22 +2,6 @@
 
 export const MODULES_DATA = [
   {
-    id: "caligrafia",
-    title: "Caligrafía y Trazo",
-    description: "Perfecciona la legibilidad, soltura, trazos de letras, cursiva, cuadrículas y guías de escritura.",
-    icon: "pen-tool",
-    color: "from-blue-500 to-indigo-600",
-    badge: "Escritura",
-    levelsUnlocked: ["Principiante", "Básico", "Intermedio", "Avanzado", "Experto", "Maestro"],
-    lessons: [
-      { id: "cal_1", title: "Trazos Básicos y Guías de Control", type: "theory_practice", duration: "10 min" },
-      { id: "cal_2", title: "Letras Minúsculas Curvas (a, c, d, g, o, q)", type: "interactive_canvas", duration: "15 min" },
-      { id: "cal_3", title: "Letras Ascendentes y Descendentes (b, f, h, k, l, p, z)", type: "interactive_canvas", duration: "15 min" },
-      { id: "cal_4", title: "Palabras en Cursiva y Fluidez", type: "interactive_canvas", duration: "20 min" },
-      { id: "cal_5", title: "Generador de Hojas de Práctica Imprimibles", type: "generator", duration: "Libre" }
-    ]
-  },
-  {
     id: "ortografia",
     title: "Ortografía Impecable",
     description: "Domina las reglas de B/V, C/S/Z, G/J, LL/Y, H, tildes agudas/graves/esdrújulas, diéresis y mayúsculas.",

@@ -455,7 +455,7 @@ class AppController {
                         <span class="px-3 py-1 text-xs font-bold rounded-full bg-white/10 text-indigo-300 border border-white/10">
                           ${mod.badge}
                         </span>
-                        <span class="text-2xl">${mod.icon === 'pen-tool' ? '✍️' : mod.icon === 'check-check' ? '✅' : mod.icon === 'book-open' ? '📖' : '📝'}</span>
+                        <span class="text-2xl">${mod.icon === 'check-check' ? '✅' : mod.icon === 'book-open' ? '📖' : '📝'}</span>
                       </div>
                       <h4 class="font-bold text-white text-base">${mod.title}</h4>
                       <p class="text-xs text-slate-400 line-clamp-2 mt-1">${mod.description}</p>
@@ -667,34 +667,13 @@ class AppController {
     // 3. EJERCICIO INTERACTIVO VIEW
     Router.registerRoute("ejercicio", (container, params = {}) => {
       const moduleId = params.moduleId || "ortografia";
-      const moduleInfo = MODULES_DATA.find(m => m.id === moduleId) || MODULES_DATA[1];
+      const moduleInfo = MODULES_DATA.find(m => m.id === moduleId) || MODULES_DATA[0];
 
       Router.setTestActive(true);
 
-      // Special modules (caligrafia, velocidad) with custom mechanics in construction
-      if (moduleId === "caligrafia" || moduleId === "velocidad") {
-        container.innerHTML = `
-          <div class="p-6 md:p-8 max-w-2xl mx-auto space-y-6 animate-fade-in text-center">
-            <div class="bg-white/5 backdrop-blur-xl p-8 md:p-10 rounded-3xl border border-white/10 shadow-2xl space-y-6">
-              <div class="w-20 h-20 mx-auto rounded-3xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-4xl shadow-inner">
-                🚧
-              </div>
-              <div class="space-y-2">
-                <span class="text-xs font-bold uppercase tracking-wider text-indigo-400">${moduleInfo.title}</span>
-                <h2 class="text-2xl font-extrabold text-white">Módulo en Construcción</h2>
-                <p class="text-sm text-slate-300 max-w-md mx-auto leading-relaxed">
-                  Este módulo tiene un formato especial y está en construcción 🚧
-                </p>
-              </div>
-              <div class="pt-2">
-                <button onclick="Router.navigateTo('modulos')" class="px-6 py-3 rounded-2xl bg-indigo-500 hover:bg-indigo-600 text-white font-bold text-xs shadow-lg shadow-indigo-500/20 transition-all hover:scale-105">
-                  ← Volver a Módulos
-                </button>
-              </div>
-            </div>
-          </div>
-        `;
-        Router.setTestActive(false);
+      // Special module redirection for velocidad -> mecanografia
+      if (moduleId === "velocidad") {
+        Router.navigateTo("mecanografia");
         return;
       }
 
@@ -1586,149 +1565,6 @@ class AppController {
           };
 
           renderMemorama();
-        } else if (exType === "ordenar") {
-          // ORDENAR / SEQUENCE EXERCISES
-          const rawParts = ex.parts || ex.options || [];
-          const parts = rawParts.map((p, i) => ({ id: i, text: p }));
-          let placedIndices = [];
-          let isSubmitted = false;
-
-          const renderOrdering = () => {
-            const availableParts = parts.filter(p => !placedIndices.includes(p.id));
-
-            interactiveArea.innerHTML = `
-              <div class="space-y-4">
-                <div class="space-y-2">
-                  <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Tu secuencia:</p>
-                  <div id="placed-chips-container" class="min-h-[60px] p-3.5 rounded-2xl bg-white/5 border border-white/10 flex flex-wrap gap-2 items-center shadow-inner">
-                    ${placedIndices.length === 0 ? `
-                      <span class="text-xs text-slate-400 italic">Haz clic en las palabras/fichas de abajo para formar la secuencia correcta.</span>
-                    ` : placedIndices.map((pIdx, seqPos) => `
-                      <button data-placed-pos="${seqPos}" class="placed-chip-btn px-3.5 py-2 rounded-xl bg-indigo-600/40 border border-indigo-400/50 text-white font-semibold text-xs transition-all hover:bg-rose-500/30 hover:border-rose-400 flex items-center gap-1.5 shadow-md ${isSubmitted ? 'cursor-default' : ''}">
-                        <span>${parts[pIdx].text}</span>
-                        ${!isSubmitted ? '<span class="text-[10px] text-indigo-300">✕</span>' : ''}
-                      </button>
-                    `).join('')}
-                  </div>
-                </div>
-
-                ${!isSubmitted ? `
-                  <div class="space-y-2">
-                    <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Fichas disponibles:</p>
-                    <div class="flex flex-wrap gap-2">
-                      ${availableParts.map(p => `
-                        <button data-part-id="${p.id}" class="avail-chip-btn px-3.5 py-2 rounded-xl bg-white/10 border border-white/10 hover:border-indigo-400 hover:bg-white/20 text-slate-200 font-semibold text-xs transition-all hover:scale-105 shadow-sm">
-                          ${p.text}
-                        </button>
-                      `).join('')}
-                    </div>
-                  </div>
-
-                  <div class="pt-2 flex justify-end gap-2">
-                    ${placedIndices.length > 0 ? `
-                      <button id="reset-order-btn" class="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-slate-300 font-bold text-xs transition-all">
-                        🔄 Reiniciar
-                      </button>
-                    ` : ''}
-                    <button id="verify-order-btn" class="px-5 py-2.5 rounded-2xl bg-indigo-500 hover:bg-indigo-600 text-white font-bold text-xs shadow-lg shadow-indigo-500/20 transition-all ${placedIndices.length < parts.length ? 'opacity-50 pointer-events-none' : 'hover:scale-105'}">
-                      ✓ Verificar Orden
-                    </button>
-                  </div>
-                ` : ''}
-              </div>
-            `;
-
-            if (!isSubmitted) {
-              interactiveArea.querySelectorAll(".avail-chip-btn").forEach(btn => {
-                btn.addEventListener("click", () => {
-                  const id = parseInt(btn.getAttribute("data-part-id"));
-                  placedIndices.push(id);
-                  renderOrdering();
-                });
-              });
-
-              interactiveArea.querySelectorAll(".placed-chip-btn").forEach(btn => {
-                btn.addEventListener("click", () => {
-                  const pos = parseInt(btn.getAttribute("data-placed-pos"));
-                  placedIndices.splice(pos, 1);
-                  renderOrdering();
-                });
-              });
-
-              const resetBtn = document.getElementById("reset-order-btn");
-              if (resetBtn) {
-                resetBtn.addEventListener("click", () => {
-                  placedIndices = [];
-                  renderOrdering();
-                });
-              }
-
-              const verifyBtn = document.getElementById("verify-order-btn");
-              if (verifyBtn) {
-                verifyBtn.addEventListener("click", async () => {
-                  let isCorrect = false;
-                  const userTextSeq = placedIndices.map(i => parts[i].text);
-
-                  if (Array.isArray(ex.correctOrder)) {
-                    if (typeof ex.correctOrder[0] === "number") {
-                      isCorrect = JSON.stringify(placedIndices) === JSON.stringify(ex.correctOrder);
-                    } else {
-                      isCorrect = JSON.stringify(userTextSeq) === JSON.stringify(ex.correctOrder);
-                    }
-                  } else if (Array.isArray(ex.correctSequence)) {
-                    isCorrect = JSON.stringify(userTextSeq) === JSON.stringify(ex.correctSequence);
-                  } else if (ex.correctText || ex.answer) {
-                    const expectedStr = (ex.correctText || ex.answer).trim().toLowerCase();
-                    const userStr = userTextSeq.join(" ").trim().toLowerCase();
-                    isCorrect = userStr === expectedStr || userStr === expectedStr.replace(/[.,;]/g, "");
-                  } else {
-                    isCorrect = placedIndices.every((val, idx) => val === idx);
-                  }
-
-                  isSubmitted = true;
-                  renderOrdering();
-
-                  if (isCorrect) {
-                    feedbackEl.classList.remove("hidden");
-                    feedbackEl.className = "p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-sm space-y-1 animate-fade-in";
-                    feedbackEl.innerHTML = `
-                      <p class="font-bold flex items-center gap-2 text-white">🎉 ¡Orden Correcto! (+20 XP)</p>
-                      <p class="text-xs text-slate-200">${ex.explanation || 'Has ordenado los elementos correctamente.'}</p>
-                    `;
-                    await Progress.recordSession({ module: moduleId, score: 100, xpEarned: 20, durationMinutes: 3 });
-                    fireStreakConfetti();
-                    Notifications.show("¡Orden Correcto! +20 XP", "success");
-                    setupNextButton();
-                  } else {
-                    feedbackEl.classList.remove("hidden");
-                    feedbackEl.className = "p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-sm space-y-1 animate-fade-in flex items-center justify-between flex-wrap gap-2";
-                    feedbackEl.innerHTML = `
-                      <div>
-                        <p class="font-bold flex items-center gap-2 text-white">❌ Orden Incorrecto</p>
-                        <p class="text-xs text-slate-200">${ex.explanation || 'El orden de las palabras no es el adecuado.'}</p>
-                      </div>
-                      <button id="retry-order-btn" class="px-4 py-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-200 font-bold text-xs transition-all">
-                        🔄 Intentar de nuevo
-                      </button>
-                    `;
-                    Notifications.show("Orden incorrecto, intenta de nuevo", "warning");
-
-                    const retryBtn = document.getElementById("retry-order-btn");
-                    if (retryBtn) {
-                      retryBtn.onclick = () => {
-                        isSubmitted = false;
-                        placedIndices = [];
-                        feedbackEl.classList.add("hidden");
-                        renderOrdering();
-                      };
-                    }
-                  }
-                });
-              }
-            }
-          };
-
-          renderOrdering();
         }
       };
 
