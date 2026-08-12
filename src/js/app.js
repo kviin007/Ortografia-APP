@@ -23,6 +23,7 @@ import { WeeklyProgressChart } from "../components/WeeklyProgressChart.tsx";
 import { MultiMetricProgressChart } from "../components/MultiMetricProgressChart.tsx";
 import { fireStreakConfetti, fireCelebrationConfetti } from "./confetti.js";
 import { VocabularyEngine } from "./vocabulary.js";
+import { MecanografiaEngine } from "./mecanografia.js";
 
 class AppController {
   async init() {
@@ -184,7 +185,13 @@ class AppController {
     Router.registerRoute("dashboard", (container) => {
       this.setActiveNav("dashboard");
       const user = Auth.getUser();
-      const progressPct = Math.min(100, Math.round((user.xp / user.xpToNextLevel) * 100));
+      user.moduleLevels = user.moduleLevels || {};
+      user.commonMistakes = user.commonMistakes || [];
+
+      // Calculate dynamic level (1-10) based on accuracy rate, XP and completed modules
+      const calculatedLevel = Math.min(10, Math.max(1, user.level || Math.floor((user.xp || 100) / 200) + 1));
+      const xpNeeded = user.xpToNextLevel || 300;
+      const progressPct = Math.min(100, Math.round((user.xp / xpNeeded) * 100));
 
       const todayMinutes = user.todayMinutesStudied || 0;
       const targetMinutes = user.dailyGoalMinutes || 25;
@@ -192,6 +199,9 @@ class AppController {
 
       const badgesWithStatus = Gamification.getBadgesWithStatus();
       const unlockedCount = badgesWithStatus.filter(b => b.unlocked).length;
+
+      // Common Mistakes list sorted by frequency
+      const frequentMistakes = [...user.commonMistakes].sort((a,b) => (b.count || 1) - (a.count || 1)).slice(0, 5);
 
       container.innerHTML = `
         <div class="p-6 md:p-8 max-w-7xl mx-auto space-y-8 animate-fade-in">
@@ -211,6 +221,105 @@ class AppController {
                 ⚡ Ir a Módulos Educativos
               </button>
             </div>
+          </div>
+
+          <!-- Componente de Barra de Progreso Persistente: Nivel Académico (1-10) y Experiencia (XP) -->
+          <div class="bg-gradient-to-r from-slate-900/90 via-purple-950/80 to-slate-900/90 backdrop-blur-xl p-6 md:p-8 rounded-3xl border border-purple-500/30 shadow-2xl space-y-6">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-white/10 pb-5">
+              <div class="flex items-center gap-4">
+                <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 via-purple-600 to-pink-500 text-white font-black text-2xl flex items-center justify-center shadow-lg shadow-purple-500/30 ring-4 ring-purple-400/40">
+                  N${calculatedLevel}
+                </div>
+                <div>
+                  <div class="flex items-center gap-2">
+                    <h2 class="font-extrabold text-white text-lg">Nivel Académico Dificultad ${calculatedLevel} de 10</h2>
+                    <span class="px-3 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 text-xs font-extrabold">${user.levelTitle || 'Estudiante Avanzado'}</span>
+                  </div>
+                  <p class="text-xs text-slate-300 mt-1">
+                    Precisión acumulada: <strong class="text-emerald-400 font-bold">${user.accuracyRate || 88}%</strong> | Basado en el porcentaje de aciertos y el historial de práctica
+                  </p>
+                </div>
+              </div>
+
+              <div class="flex flex-col items-start md:items-end">
+                <span class="text-xs font-black text-purple-200 bg-purple-500/20 px-4 py-2 rounded-2xl border border-purple-500/40 shadow-md">
+                  ${user.xp} / ${xpNeeded} XP
+                </span>
+                <span class="text-[11px] text-slate-400 mt-1 font-semibold">
+                  Faltan ${Math.max(0, xpNeeded - user.xp)} XP para subir al Nivel ${Math.min(10, calculatedLevel + 1)}
+                </span>
+              </div>
+            </div>
+
+            <!-- Main XP Progress Bar -->
+            <div class="space-y-2">
+              <div class="flex justify-between items-center text-xs font-extrabold text-slate-200">
+                <span class="flex items-center gap-2">
+                  <span>🎓 Progreso hacia el Nivel ${Math.min(10, calculatedLevel + 1)}</span>
+                </span>
+                <span class="text-purple-300">${progressPct}% completado</span>
+              </div>
+              <div class="w-full h-4 bg-slate-950 rounded-full overflow-hidden p-0.5 border border-purple-500/30 shadow-inner">
+                <div class="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-full transition-all duration-700 shadow-[0_0_20px_rgba(168,85,247,0.6)]" style="width: ${progressPct}%"></div>
+              </div>
+            </div>
+
+            <!-- Breakdown of Levels by Educational Module -->
+            <div class="pt-3 flex flex-wrap gap-2.5 items-center text-xs">
+              <span class="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Nivel Dinámico por Módulo:</span>
+              <span class="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-slate-200 font-bold flex items-center gap-1.5">
+                ✍️ Ortografía: <strong class="text-indigo-400">Nivel ${user.moduleLevels.ortografia || 1}/10</strong>
+              </span>
+              <span class="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-slate-200 font-bold flex items-center gap-1.5">
+                ✅ Gramática: <strong class="text-purple-400">Nivel ${user.moduleLevels.gramatica || 1}/10</strong>
+              </span>
+              <span class="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-slate-200 font-bold flex items-center gap-1.5">
+                📖 Comprensión: <strong class="text-emerald-400">Nivel ${user.moduleLevels.comprension || 1}/10</strong>
+              </span>
+              <span class="px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-slate-200 font-bold flex items-center gap-1.5">
+                📝 Redacción: <strong class="text-amber-400">Nivel ${user.moduleLevels.redaccion || 1}/10</strong>
+              </span>
+            </div>
+          </div>
+
+          <!-- Historial de Errores Comunes y Repaso Específico con IA -->
+          <div class="bg-slate-900/90 backdrop-blur-xl p-6 md:p-8 rounded-3xl border border-rose-500/30 shadow-2xl space-y-6">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-white/10 pb-4">
+              <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-2xl bg-rose-500/20 border border-rose-500/30 text-rose-300 text-2xl flex items-center justify-center">
+                  ⚠️
+                </div>
+                <div>
+                  <h3 class="font-extrabold text-white text-base">Historial de Errores Comunes y Repaso Específico</h3>
+                  <p class="text-xs text-slate-300">Reglas y palabras donde has fallado con frecuencia para reforzar tu aprendizaje</p>
+                </div>
+              </div>
+              <button id="btn-generate-error-review" class="px-4 py-2.5 rounded-2xl bg-rose-500 hover:bg-rose-600 text-white text-xs font-extrabold transition-all shadow-lg shadow-rose-500/30 flex items-center gap-2">
+                ⚡ Generar Ejercicio de Repaso con IA
+              </button>
+            </div>
+
+            ${frequentMistakes.length === 0 ? `
+              <div class="p-6 rounded-2xl bg-white/5 border border-white/10 text-center space-y-2">
+                <p class="text-sm font-bold text-emerald-300">🎉 ¡Sin errores frecuentes registrados!</p>
+                <p class="text-xs text-slate-400">A medida que realices ejercicios y exámenes, aquí se guardarán automáticamente las reglas gramaticales y palabras que necesites reforzar.</p>
+              </div>
+            ` : `
+              <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                ${frequentMistakes.map(m => `
+                  <div class="p-4 rounded-2xl bg-white/5 border border-rose-500/20 hover:border-rose-500/40 transition-all space-y-2 relative group">
+                    <div class="flex justify-between items-start">
+                      <span class="px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[10px] font-bold">
+                        Fallado ${m.count || 1} ${m.count === 1 ? 'vez' : 'veces'}
+                      </span>
+                      <span class="text-[10px] text-slate-400 font-mono">${m.module || 'General'}</span>
+                    </div>
+                    <p class="font-bold text-xs text-white line-clamp-2">${m.question}</p>
+                    ${m.rule ? `<p class="text-[11px] text-rose-300 italic font-semibold">Regla: ${m.rule}</p>` : ''}
+                  </div>
+                `).join('')}
+              </div>
+            `}
           </div>
 
           <!-- Daily Study Goal Progress Bar -->
@@ -363,18 +472,18 @@ class AppController {
             <div class="space-y-6">
               <div id="dashboard-calendar-container" class="bg-white/5 backdrop-blur-xl p-6 rounded-3xl border border-white/10 shadow-lg"></div>
 
-              <!-- Quick Tutor Prompt Card -->
+              <!-- Quick Mecanografía Prompt Card -->
               <div class="bg-gradient-to-br from-indigo-900/80 to-purple-900/60 backdrop-blur-xl border border-white/10 text-white p-6 rounded-3xl shadow-xl space-y-4">
                 <div class="flex items-center gap-3">
-                  <span class="text-3xl">🧙‍♂️</span>
+                  <span class="text-3xl">⌨️</span>
                   <div>
-                    <h4 class="font-bold text-sm">Profesor Gramaticus</h4>
-                    <p class="text-xs text-indigo-300">Tutor Virtual con IA</p>
+                    <h4 class="font-bold text-sm">Mecanografía y Ortografía</h4>
+                    <p class="text-xs text-indigo-300">Entrenamiento & Corrección IA</p>
                   </div>
                 </div>
-                <p class="text-xs text-slate-300">¿Tienes dudas sobre alguna regla ortográfica o gramatical? Pregúntame lo que desees.</p>
-                <button data-nav="tutor" class="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/10 font-bold text-xs transition-all">
-                  Chatear con el Tutor →
+                <p class="text-xs text-slate-300">Practica tu velocidad de tecleo, acentuación y corrige tus palabras erradas automáticamente con IA.</p>
+                <button data-nav="mecanografia" class="w-full py-2.5 rounded-xl bg-indigo-500 hover:bg-indigo-600 text-white font-bold text-xs transition-all shadow-lg shadow-indigo-500/20">
+                  ⚡ Abrir Mecanografía →
                 </button>
               </div>
             </div>
@@ -408,6 +517,18 @@ class AppController {
 
       // Render Calendar Widget
       CalendarWidget.render("dashboard-calendar-container");
+
+      // Generate Targeted Error Review Exercise Button Listener
+      document.getElementById("btn-generate-error-review")?.addEventListener("click", () => {
+        const mistakes = user.commonMistakes || [];
+        if (mistakes.length === 0) {
+          Notifications.show("¡Felicidades! No tienes errores comunes registrados. Continúa practicando en los módulos.", "info");
+          return;
+        }
+        const topMistake = mistakes.sort((a,b) => (b.count || 1) - (a.count || 1))[0];
+        Notifications.show(`⚡ Generando ejercicio de repaso focalizado en: "${topMistake.rule || topMistake.question}"`, "success");
+        window.launchModule(topMistake.module || "ortografia");
+      });
 
       // Stats card listeners
       document.getElementById("dash-stat-streak")?.addEventListener("click", () => {
@@ -547,441 +668,1114 @@ class AppController {
     Router.registerRoute("ejercicio", (container, params = {}) => {
       const moduleId = params.moduleId || "ortografia";
       const moduleInfo = MODULES_DATA.find(m => m.id === moduleId) || MODULES_DATA[1];
-      const exercises = EXERCISES_DATABASE[moduleId] || EXERCISES_DATABASE["ortografia"];
-      let currentIdx = 0;
 
       Router.setTestActive(true);
 
+      // Special modules (caligrafia, velocidad) with custom mechanics in construction
+      if (moduleId === "caligrafia" || moduleId === "velocidad") {
+        container.innerHTML = `
+          <div class="p-6 md:p-8 max-w-2xl mx-auto space-y-6 animate-fade-in text-center">
+            <div class="bg-white/5 backdrop-blur-xl p-8 md:p-10 rounded-3xl border border-white/10 shadow-2xl space-y-6">
+              <div class="w-20 h-20 mx-auto rounded-3xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-4xl shadow-inner">
+                🚧
+              </div>
+              <div class="space-y-2">
+                <span class="text-xs font-bold uppercase tracking-wider text-indigo-400">${moduleInfo.title}</span>
+                <h2 class="text-2xl font-extrabold text-white">Módulo en Construcción</h2>
+                <p class="text-sm text-slate-300 max-w-md mx-auto leading-relaxed">
+                  Este módulo tiene un formato especial y está en construcción 🚧
+                </p>
+              </div>
+              <div class="pt-2">
+                <button onclick="Router.navigateTo('modulos')" class="px-6 py-3 rounded-2xl bg-indigo-500 hover:bg-indigo-600 text-white font-bold text-xs shadow-lg shadow-indigo-500/20 transition-all hover:scale-105">
+                  ← Volver a Módulos
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+        Router.setTestActive(false);
+        return;
+      }
+
+      const user = Auth.getUser();
+      user.completedQuestions = user.completedQuestions || [];
+      user.moduleLevels = user.moduleLevels || {};
+      user.spacedRepetitionList = user.spacedRepetitionList || [];
+
+      const getExerciseKey = (ex) => {
+        if (!ex) return "ex_unknown";
+        if (ex.id) return String(ex.id);
+        const qStr = (ex.question || "").trim().toLowerCase();
+        const optsStr = (ex.options || []).join("_").toLowerCase();
+        return `key_${qStr}_${optsStr}`;
+      };
+
+      const shuffleArray = (arr) => {
+        const a = [...arr];
+        for (let i = a.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [a[i], a[j]] = [a[j], a[i]];
+        }
+        return a;
+      };
+
+      // Spaced Repetition: Priority to failed questions for this module that haven't been completed yet
+      const failedForModule = user.spacedRepetitionList.filter(item => 
+        (item.module === moduleId || !item.module) && !user.completedQuestions.includes(getExerciseKey(item))
+      );
+
+      const baseExercises = EXERCISES_DATABASE[moduleId] || [];
+      let exercises = [];
+      
+      // Load spaced repetition items first if available
+      if (failedForModule.length > 0) {
+        exercises.push(...failedForModule.map(item => ({ ...item, isSpacedRepetition: true })));
+      }
+
+      if (baseExercises && baseExercises.length > 0) {
+        const uncompleted = baseExercises.filter(ex => !user.completedQuestions.includes(getExerciseKey(ex)));
+        if (uncompleted.length > 0) {
+          exercises.push(...shuffleArray(uncompleted));
+        }
+      }
+
+      let currentIdx = 0;
+      let difficultyLevel = user.moduleLevels[moduleId] || 1;
+      let isFinalExam = false;
+      let examCompleted = false;
+      let isGenerating = false;
+
+      // Block Accuracy Tracker for Level Up (>80% accuracy)
+      let blockTotalCount = 0;
+      let blockCorrectCount = 0;
+
+      const autoGenerateAIExercise = async () => {
+        isGenerating = true;
+        renderQuestion();
+
+        try {
+          const topic = (moduleInfo.lessons && moduleInfo.lessons[0]?.title) || moduleInfo.title || "Ejercicios";
+          const excludeKeys = user.completedQuestions.map(k => String(k));
+
+          const aiExercise = await AIEngine.generateExercise(moduleId, difficultyLevel, topic, excludeKeys);
+          const newKey = getExerciseKey(aiExercise);
+
+          if (!user.completedQuestions.includes(newKey)) {
+            exercises.push(aiExercise);
+          } else {
+            aiExercise.id = `gen_unique_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+            exercises.push(aiExercise);
+          }
+
+          currentIdx = exercises.length - 1;
+          isGenerating = false;
+          Notifications.show(`✨ ${isFinalExam ? 'Pregunta de Examen Final' : `Nuevo Ejercicio Inédito (Nivel ${difficultyLevel}/10)`} generado`, "success");
+          renderQuestion();
+        } catch (err) {
+          console.error("Error al generar ejercicio con IA:", err);
+          isGenerating = false;
+          Notifications.show("Error al conectar con la IA", "error");
+          renderQuestion();
+        }
+      };
+
+      // If no uncompleted exercises exist initially in static database, auto-generate fresh AI exercise immediately
+      if (exercises.length === 0) {
+        autoGenerateAIExercise();
+      }
+
       const renderQuestion = () => {
-        const ex = exercises[currentIdx] || exercises[0];
+        if (examCompleted) {
+          // Render Final Exam Completed View
+          container.innerHTML = `
+            <div class="p-6 md:p-8 max-w-3xl mx-auto space-y-6 animate-fade-in">
+              <div class="bg-gradient-to-br from-amber-500/20 via-indigo-950/60 to-slate-900 p-8 rounded-3xl border-2 border-amber-400/50 shadow-2xl text-center space-y-6">
+                <div class="inline-flex p-5 rounded-full bg-amber-500/20 text-amber-300 text-5xl shadow-xl shadow-amber-500/20 animate-bounce">
+                  🏆
+                </div>
+                <div class="space-y-2">
+                  <span class="text-xs font-extrabold uppercase tracking-widest text-amber-400">Módulo Completado al 100%</span>
+                  <h2 class="text-2xl md:text-3xl font-extrabold text-white">¡Felicidades! Has superado el Examen Final</h2>
+                  <p class="text-sm text-slate-200 max-w-lg mx-auto leading-relaxed">
+                    Has completado exitosamente los <strong>10 Niveles de Dificultad</strong> y la evaluación final de <strong>${moduleInfo.title}</strong>.
+                  </p>
+                </div>
+
+                <div class="p-4 rounded-2xl bg-white/5 border border-white/10 max-w-md mx-auto flex items-center justify-around text-xs font-bold text-slate-200">
+                  <div>
+                    <span class="block text-slate-400 text-[10px] uppercase">Dificultad Superada</span>
+                    <span class="text-amber-300 text-sm font-extrabold">10 / 10 ⚡</span>
+                  </div>
+                  <div class="h-8 w-px bg-white/10"></div>
+                  <div>
+                    <span class="block text-slate-400 text-[10px] uppercase">Recompensa Extra</span>
+                    <span class="text-emerald-400 text-sm font-extrabold">+100 XP 🏅</span>
+                  </div>
+                </div>
+
+                <div class="flex justify-center gap-3 pt-2">
+                  <button onclick="Router.navigateTo('dashboard')" class="px-6 py-3 rounded-2xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-extrabold text-xs shadow-lg shadow-amber-500/30 transition-all hover:scale-105">
+                    🎓 Volver al Panel Principal
+                  </button>
+                </div>
+              </div>
+            </div>
+          `;
+          return;
+        }
+
+        const ex = exercises[currentIdx] || { question: "Cargando ejercicio inedito..." };
 
         container.innerHTML = `
           <div class="p-6 md:p-8 max-w-3xl mx-auto space-y-6 animate-fade-in">
-            <div class="flex justify-between items-center">
+            <!-- Header with Module Title, Completed HUD & Difficulty Gauge 1-10 -->
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <span class="text-xs font-bold uppercase tracking-wider text-indigo-400">${moduleInfo.title}</span>
-                <h2 class="text-xl font-bold text-white">Ejercicio ${currentIdx + 1} de ${exercises.length}</h2>
-              </div>
-              <span class="px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500/10 border border-amber-500/20 text-amber-300">
-                +20 XP por acierto
-              </span>
-            </div>
-
-            <!-- Question Card (Frosted Glass) -->
-            <div class="bg-white/5 backdrop-blur-xl p-6 md:p-8 rounded-3xl border border-white/10 shadow-2xl space-y-6">
-              <p class="text-base md:text-lg font-semibold text-white leading-relaxed">${ex.question}</p>
-
-              <!-- Options -->
-              ${ex.options ? `
-                <div class="space-y-3">
-                  ${ex.options.map((opt, idx) => `
-                    <button onclick="window.submitAnswer(${idx})" class="w-full text-left p-4 rounded-2xl border border-white/10 bg-white/5 hover:border-indigo-500 hover:bg-white/10 transition-all text-sm font-medium text-slate-200 flex items-center justify-between">
-                      <span>${opt}</span>
-                      <span class="text-xs text-slate-400">Opción ${idx + 1}</span>
-                    </button>
-                  `).join('')}
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span class="text-xs font-bold uppercase tracking-wider text-indigo-400">${moduleInfo.title}</span>
+                  <span class="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-extrabold tracking-wider uppercase">
+                    ✓ ${user.completedQuestions.length} Resueltos
+                  </span>
+                  ${isFinalExam ? '<span class="px-2.5 py-0.5 rounded-full bg-amber-500 text-slate-950 font-extrabold text-[10px] tracking-wider uppercase animate-pulse">🏆 EXAMEN FINAL</span>' : ''}
                 </div>
-              ` : ''}
+                <h2 class="text-xl font-bold text-white flex items-center gap-2 mt-1">
+                  ${isFinalExam ? '🏆 Pregunta de Examen Final' : `Ejercicio ${currentIdx + 1} de ${Math.max(exercises.length, currentIdx + 1)}`}
+                </h2>
+              </div>
 
-              <!-- Explanation Feedback Box -->
-              <div id="exercise-feedback" class="hidden p-4 rounded-2xl border text-sm space-y-2"></div>
+              <!-- Difficulty Gauge 1 to 10 -->
+              <div class="flex items-center gap-3 bg-white/5 border border-white/10 px-4 py-2.5 rounded-2xl backdrop-blur-xl shadow-lg">
+                <div class="space-y-1">
+                  <div class="flex justify-between items-center text-[11px] font-bold gap-3">
+                    <span class="text-slate-300">Dificultad Dinámica</span>
+                    <span class="text-amber-400 font-extrabold">${isFinalExam ? '10 / 10 (MÁXIMA)' : `Nivel ${difficultyLevel} / 10`}</span>
+                  </div>
+                  <!-- 10 Level Pips -->
+                  <div class="flex items-center gap-1">
+                    ${Array.from({ length: 10 }).map((_, i) => `
+                      <div class="h-2 w-3 rounded-full transition-all ${i < difficultyLevel ? (isFinalExam ? 'bg-amber-400 shadow-sm shadow-amber-400/50' : 'bg-indigo-500 shadow-sm shadow-indigo-500/50') : 'bg-white/10'}"></div>
+                    `).join('')}
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <div class="flex justify-between items-center">
-              <button onclick="Speech.speak('${ex.question.replace(/'/g, "")}')" class="px-4 py-2.5 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/10 text-white text-xs font-bold flex items-center gap-2 transition-all">
-                🔊 Escuchar Pregunta
-              </button>
-              <button id="next-ex-btn" class="hidden px-6 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs shadow-lg shadow-emerald-500/20 transition-all">
-                Siguiente Ejercicio →
-              </button>
-            </div>
+            <!-- Auto-Generating AI Loader State -->
+            ${isGenerating ? `
+              <div class="bg-white/5 backdrop-blur-xl p-8 rounded-3xl border border-indigo-500/30 shadow-2xl text-center space-y-4 animate-fade-in">
+                <div class="inline-flex p-4 rounded-full bg-indigo-500/20 text-indigo-400 text-3xl animate-bounce">
+                  🤖
+                </div>
+                <h3 class="text-lg font-bold text-white">Generando automáticamente ejercicio inédito...</h3>
+                <p class="text-xs text-slate-300 max-w-md mx-auto leading-relaxed">
+                  Creando contenido sin repetir de <strong class="text-amber-300">${isFinalExam ? 'Examen Final' : `Nivel de Dificultad ${difficultyLevel} de 10`}</strong> sobre "${moduleInfo.title}".
+                </p>
+                <div class="w-full bg-white/10 h-1.5 rounded-full overflow-hidden max-w-xs mx-auto">
+                  <div class="bg-indigo-500 h-full rounded-full animate-progress-ripple"></div>
+                </div>
+              </div>
+            ` : `
+              <!-- Question Card (Frosted Glass) -->
+              <div class="bg-white/5 backdrop-blur-xl p-6 md:p-8 rounded-3xl border border-white/10 shadow-2xl space-y-6">
+                <p class="text-base md:text-lg font-semibold text-white leading-relaxed">${ex.question || 'Completa el ejercicio:'}</p>
+
+                <!-- Interactive Area -->
+                <div id="exercise-interactive-area"></div>
+
+                <!-- Explanation Feedback Box -->
+                <div id="exercise-feedback" class="hidden p-4 rounded-2xl border text-sm space-y-2"></div>
+              </div>
+
+              <div class="flex justify-between items-center gap-2 flex-wrap">
+                <button onclick="Speech.speak('${(ex.question || '').replace(/'/g, "")}')" class="px-4 py-2.5 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/10 text-white text-xs font-bold flex items-center gap-2 transition-all">
+                  🔊 Escuchar Pregunta
+                </button>
+                <div class="flex items-center gap-2">
+                  <button id="next-ex-btn" class="hidden px-6 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-extrabold text-xs shadow-lg shadow-emerald-500/20 transition-all hover:scale-105">
+                    Siguiente Ejercicio Inédito →
+                  </button>
+                </div>
+              </div>
+            `}
           </div>
         `;
 
-        window.submitAnswer = async (selectedIdx) => {
-          const feedbackEl = document.getElementById("exercise-feedback");
-          const nextBtn = document.getElementById("next-ex-btn");
-          const isCorrect = selectedIdx === ex.correctIndex;
+        if (isGenerating) return;
 
-          feedbackEl.classList.remove("hidden");
-          if (isCorrect) {
-            feedbackEl.className = "p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-sm space-y-1 animate-fade-in";
-            feedbackEl.innerHTML = `
-              <p class="font-bold flex items-center gap-2 text-white">🎉 ¡Respuesta Correcta! (+20 XP)</p>
-              <p class="text-xs text-slate-200">${ex.explanation}</p>
-              <p class="text-[11px] opacity-80 italic text-emerald-400">Regla: ${ex.rule}</p>
-            `;
-            await Progress.recordSession({ module: moduleId, score: 100, xpEarned: 20, durationMinutes: 3 });
-            fireStreakConfetti();
-            Notifications.show("¡Respuesta Correcta! +20 XP", "success");
-          } else {
-            feedbackEl.className = "p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-sm space-y-1 animate-fade-in";
-            feedbackEl.innerHTML = `
-              <p class="font-bold flex items-center gap-2 text-white">❌ Respuesta Incorrecta</p>
-              <p class="text-xs text-slate-200">${ex.explanation}</p>
-              <p class="text-[11px] opacity-80 italic text-rose-400">Regla: ${ex.rule}</p>
-            `;
-            Notifications.show("Sigue intentándolo", "warning");
-          }
+        const interactiveArea = document.getElementById("exercise-interactive-area");
+        const feedbackEl = document.getElementById("exercise-feedback");
+        const nextBtn = document.getElementById("next-ex-btn");
 
+        const setupNextButton = () => {
+          if (!nextBtn) return;
           nextBtn.classList.remove("hidden");
-          nextBtn.onclick = () => {
-            currentIdx = (currentIdx + 1) % exercises.length;
-            if (currentIdx === 0) {
-              Router.setTestActive(false);
-              fireCelebrationConfetti();
-              Notifications.show("🎓 ¡Has completado todos los ejercicios de este módulo!", "success");
+          nextBtn.onclick = async () => {
+            if (currentIdx < exercises.length - 1) {
+              currentIdx++;
+              renderQuestion();
+            } else {
+              // Automatically fetch a NEW non-repeated exercise with AI without asking user!
+              if (difficultyLevel < 10) {
+                if (blockTotalCount > 0 && (blockCorrectCount / blockTotalCount) > 0.8) {
+                  difficultyLevel++;
+                  user.moduleLevels[moduleId] = difficultyLevel;
+                  await Auth.saveUser();
+                  fireStreakConfetti();
+                  Notifications.show(`🎯 ¡Excelente precisión! Subiste al Nivel ${difficultyLevel}`, "success");
+                }
+                await autoGenerateAIExercise();
+              } else if (!isFinalExam) {
+                isFinalExam = true;
+                fireCelebrationConfetti();
+                Notifications.show("🏆 ¡Has desbloqueado el Examen Final!", "success");
+                await autoGenerateAIExercise();
+              } else {
+                examCompleted = true;
+                await Progress.recordSession({ module: moduleId, score: 100, xpEarned: 100, durationMinutes: 10 });
+                fireCelebrationConfetti();
+                renderQuestion();
+              }
             }
-            renderQuestion();
           };
         };
-      };
 
-      renderQuestion();
-    });
+        let exType = ex.type || (ex.options ? "opcion_multiple" : "arrastrar");
+        if (exType === "ordenar") {
+          const parts = ex.parts || ex.options || [];
+          const hasOrderingMeta = Array.isArray(ex.correctOrder) || Array.isArray(ex.correctSequence) || ex.correctText || ex.answer || (ex.parts && ex.parts.length);
+          if (!parts.length || (!hasOrderingMeta && typeof ex.correctIndex === "number")) {
+            exType = "opcion_multiple";
+          }
+        }
 
-    // 4. EDITOR INTELIGENTE VIEW
-    Router.registerRoute("editor", (container) => {
-      this.setActiveNav("editor");
-      Router.setEditorActive(true);
-
-      container.innerHTML = `
-        <div class="p-6 md:p-8 max-w-6xl mx-auto space-y-6 animate-fade-in">
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <h1 class="text-2xl font-extrabold text-white">Editor Inteligente de Redacción</h1>
-              <p class="text-xs text-slate-300">Redacta ensayos, cartas y correos con dictado por voz, análisis de legibilidad e Inteligencia Artificial.</p>
-            </div>
-            <div class="flex flex-wrap gap-2.5">
-              <button id="dictate-btn" class="px-3.5 py-2 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/10 text-white font-bold text-xs flex items-center gap-1.5 transition-all">
-                <span id="dictate-icon">🎙️</span> <span id="dictate-text">Dictar por Voz</span>
-              </button>
-              <button id="save-draft-btn" class="px-3.5 py-2 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/10 text-white font-bold text-xs flex items-center gap-1.5 transition-all">
-                💾 Guardar Borrador
-              </button>
-              <button id="copy-text-btn" class="px-3.5 py-2 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/10 text-white font-bold text-xs flex items-center gap-1.5 transition-all">
-                📋 Copiar Texto
-              </button>
-              <button id="analyze-ai-btn" class="px-4 py-2 rounded-2xl bg-indigo-500 hover:bg-indigo-600 text-white font-bold text-xs shadow-lg shadow-indigo-500/30 transition-all flex items-center gap-1.5">
-                ✨ Evaluador IA
-              </button>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <!-- Left 2 Cols: Textarea Editor -->
-            <div class="lg:col-span-2 space-y-4">
-              <div class="bg-white/5 backdrop-blur-xl rounded-3xl border border-white/10 shadow-xl overflow-hidden flex flex-col relative">
-                <!-- Listening pulse bar overlay when recording -->
-                <div id="recording-status-bar" class="hidden p-2 bg-rose-500/20 border-b border-rose-500/30 text-rose-300 text-xs font-bold flex items-center gap-2 px-4 animate-pulse">
-                  <span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
-                  <span>Micrófono Activo: Escuchando dictado por voz en tiempo real...</span>
-                </div>
-
-                <!-- Toolbar -->
-                <div class="p-3 bg-white/5 border-b border-white/10 flex flex-wrap gap-2 text-xs font-semibold items-center">
-                  <button onclick="document.execCommand('bold')" class="px-3 py-1 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/10"><b>B</b></button>
-                  <button onclick="document.execCommand('italic')" class="px-3 py-1 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/10"><i>I</i></button>
-                  <button onclick="document.execCommand('underline')" class="px-3 py-1 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/10"><u>U</u></button>
-                  <button onclick="document.execCommand('removeFormat')" class="px-3 py-1 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/10" title="Limpiar Formato">🧹 Formato</button>
-                  <span class="border-r border-white/10 h-4 my-1"></span>
-                  <button onclick="Speech.speak(document.getElementById('editor-textarea').innerText)" class="px-3 py-1 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/10">🔊 Leer Texto</button>
-                  <button id="clear-editor-btn" class="px-3 py-1 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 ml-auto">🗑️ Limpiar</button>
-                </div>
-
-                <!-- Editable Content Area -->
-                <div id="editor-textarea" contenteditable="true" class="p-6 min-h-[350px] outline-none text-slate-100 text-base leading-relaxed" placeholder="Escribe o dicta tu texto aquí...">
-                  La educación en la era digital no solo transforma las herramientas que utilizamos, sino la forma en que estructuramos nuestro pensamiento crítico y comunicamos nuestras ideas con claridad.
-                </div>
+        if (exType === "opcion_multiple" || exType === "completar") {
+          // MULTIPLE CHOICE / COMPLETAR WITH BUTTON SELECTION HIGHLIGHT & ANIMATIONS
+          if (ex.options) {
+            interactiveArea.innerHTML = `
+              <div class="space-y-3" id="options-container">
+                ${ex.options.map((opt, idx) => `
+                  <button id="opt-btn-${idx}" data-idx="${idx}" class="opt-btn w-full text-left p-4 rounded-2xl border border-white/10 bg-white/5 hover:border-indigo-500 hover:bg-white/10 transition-all text-sm font-medium text-slate-200 flex items-center justify-between group">
+                    <span class="flex items-center gap-3">
+                      <span class="w-7 h-7 rounded-xl bg-white/10 text-xs font-bold flex items-center justify-center text-slate-300 group-hover:bg-indigo-500 group-hover:text-white transition-all shadow-inner">${String.fromCharCode(65 + idx)}</span>
+                      <span>${opt}</span>
+                    </span>
+                    <span class="opt-badge text-xs text-slate-400 font-semibold">Opción ${idx + 1}</span>
+                  </button>
+                `).join('')}
               </div>
+            `;
 
-              <!-- Metrics Footer Bar -->
-              <div class="grid grid-cols-4 gap-3 text-center bg-white/5 backdrop-blur-xl p-4 rounded-2xl border border-white/10 shadow-lg">
-                <div>
-                  <p class="text-[10px] text-slate-400 font-bold uppercase">Palabras</p>
-                  <p id="m-words" class="text-lg font-bold text-white">0</p>
-                </div>
-                <div>
-                  <p class="text-[10px] text-slate-400 font-bold uppercase">Caracteres</p>
-                  <p id="m-chars" class="text-lg font-bold text-white">0</p>
-                </div>
-                <div>
-                  <p class="text-[10px] text-slate-400 font-bold uppercase">Oraciones</p>
-                  <p id="m-sentences" class="text-lg font-bold text-white">0</p>
-                </div>
-                <div>
-                  <p class="text-[10px] text-slate-400 font-bold uppercase">Tiempo Lectura</p>
-                  <p id="m-time" class="text-lg font-bold text-white">0 min</p>
-                </div>
-              </div>
-            </div>
+            interactiveArea.querySelectorAll(".opt-btn").forEach(btn => {
+              btn.addEventListener("click", () => {
+                const selectedIdx = parseInt(btn.getAttribute("data-idx"));
+                window.submitAnswer(selectedIdx);
+              });
+            });
+          }
 
-            <!-- Right Col: AI Feedback Results -->
-            <div id="editor-ai-results" class="bg-white/5 backdrop-blur-xl p-6 rounded-3xl border border-white/10 shadow-xl space-y-4">
-              <h3 class="font-bold text-white flex items-center gap-2">
-                📊 Evaluación de Legibilidad
-              </h3>
-              <div>
-                <p class="text-xs text-slate-400">Índice Flesch-Szigriszt:</p>
-                <p id="flesch-score-badge" class="text-xl font-extrabold text-indigo-400">85 (Muy Fácil)</p>
-              </div>
-              <div id="ai-feedback-container" class="space-y-3 text-xs text-slate-300">
-                <p>Haz clic en <strong>✨ Evaluador IA</strong> para recibir una retroalimentación detallada y corrección profunda de ortografía y gramática.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      `;
+          window.submitAnswer = async (selectedIdx) => {
+            const isCorrect = selectedIdx === ex.correctIndex;
 
-      const editorEl = document.getElementById("editor-textarea");
-      const updateLiveMetrics = () => {
-        const txt = editorEl.innerText || "";
-        const m = SmartEditor.getMetrics(txt);
-        document.getElementById("m-words").textContent = m.words;
-        document.getElementById("m-chars").textContent = m.characters;
-        document.getElementById("m-sentences").textContent = m.sentences;
-        document.getElementById("m-time").textContent = `${m.readingTimeMinutes} min`;
-        document.getElementById("flesch-score-badge").textContent = `${m.fleschScore} (${m.readabilityLabel})`;
-      };
+            // Block accuracy counter for level up tracking (>80% accuracy)
+            blockTotalCount++;
+            if (isCorrect) blockCorrectCount++;
 
-      editorEl.addEventListener("input", updateLiveMetrics);
-      updateLiveMetrics();
+            // Unique Exercise Key for Instant Real-Time Tracking
+            const qKey = getExerciseKey(ex);
 
-      // Voice Dictation Button Handler
-      const dictateBtn = document.getElementById("dictate-btn");
-      const dictateIcon = document.getElementById("dictate-icon");
-      const dictateText = document.getElementById("dictate-text");
-      const statusBar = document.getElementById("recording-status-bar");
+            if (isCorrect) {
+              if (!user.completedQuestions.includes(qKey)) {
+                user.completedQuestions.push(qKey);
+              }
+              // Remove from spaced repetition list if answered correctly
+              user.spacedRepetitionList = user.spacedRepetitionList.filter(item => getExerciseKey(item) !== qKey);
+              // Remove from common mistakes if answered correctly
+              user.commonMistakes = (user.commonMistakes || []).filter(m => getExerciseKey(m) !== qKey);
 
-      dictateBtn.onclick = () => {
-        if (Speech.isListening) {
-          Speech.stopListening();
-          statusBar.classList.add("hidden");
-          dictateBtn.className = "px-3.5 py-2 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/10 text-white font-bold text-xs flex items-center gap-1.5 transition-all";
-          dictateIcon.textContent = "🎙️";
-          dictateText.textContent = "Dictar por Voz";
-          Notifications.show("Dictado por voz finalizado.", "info");
-        } else {
-          statusBar.classList.remove("hidden");
-          dictateBtn.className = "px-3.5 py-2 rounded-2xl bg-rose-500 hover:bg-rose-600 border border-rose-400 text-white font-bold text-xs flex items-center gap-1.5 transition-all animate-pulse";
-          dictateIcon.textContent = "🔴";
-          dictateText.textContent = "Detener Dictado";
+              user.xp = (user.xp || 0) + 20;
+              user.todayMinutesStudied = (user.todayMinutesStudied || 0) + 2;
 
-          Notifications.show("🎙️ Escuchando... Habla libremente por tu micrófono.", "info");
+              await Auth.saveUser();
+              await Progress.recordSession({ module: moduleId, score: 100, xpEarned: 20, durationMinutes: 2 });
+            } else {
+              // Add to common mistakes and spaced repetition list
+              user.commonMistakes = user.commonMistakes || [];
+              const existingMistake = user.commonMistakes.find(m => getExerciseKey(m) === qKey || m.question === ex.question);
+              if (existingMistake) {
+                existingMistake.count = (existingMistake.count || 1) + 1;
+              } else {
+                user.commonMistakes.push({
+                  id: qKey,
+                  module: moduleId,
+                  question: ex.question,
+                  rule: ex.rule || "Regla ortográfica/gramatical",
+                  count: 1
+                });
+              }
 
-          Speech.startListening((finalText) => {
-            if (finalText) {
-              editorEl.innerText += (editorEl.innerText.trim() ? " " : "") + finalText;
-              updateLiveMetrics();
+              user.spacedRepetitionList = user.spacedRepetitionList || [];
+              if (!user.spacedRepetitionList.some(item => getExerciseKey(item) === qKey)) {
+                user.spacedRepetitionList.push({
+                  id: qKey,
+                  module: moduleId,
+                  question: ex.question,
+                  options: ex.options,
+                  correctIndex: ex.correctIndex,
+                  explanation: ex.explanation,
+                  rule: ex.rule,
+                  type: ex.type || "opcion_multiple",
+                  failedAt: new Date().toISOString()
+                });
+              }
+              await Auth.saveUser();
             }
-          }, (err) => {
-            statusBar.classList.add("hidden");
-            dictateBtn.className = "px-3.5 py-2 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/10 text-white font-bold text-xs flex items-center gap-1.5 transition-all";
-            dictateIcon.textContent = "🎙️";
-            dictateText.textContent = "Dictar por Voz";
-            Notifications.show("Error de micrófono: " + err, "error");
-          }, () => {
-            statusBar.classList.add("hidden");
-            dictateBtn.className = "px-3.5 py-2 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/10 text-white font-bold text-xs flex items-center gap-1.5 transition-all";
-            dictateIcon.textContent = "🎙️";
-            dictateText.textContent = "Dictar por Voz";
+
+            // Check if accuracy > 80% in block of questions to increase difficulty level (1 to 10)
+            if (blockTotalCount >= 3) {
+              const accuracyPct = (blockCorrectCount / blockTotalCount) * 100;
+              if (accuracyPct > 80 && difficultyLevel < 10) {
+                difficultyLevel++;
+                user.moduleLevels[moduleId] = difficultyLevel;
+                await Auth.saveUser();
+                Notifications.show(`🎯 ¡Precisión superior al 80%! Subiste al Nivel ${difficultyLevel} de 10`, "success");
+              }
+              blockTotalCount = 0;
+              blockCorrectCount = 0;
+            }
+
+            // Freeze option buttons
+            const allBtns = interactiveArea.querySelectorAll(".opt-btn");
+            allBtns.forEach(b => {
+              b.disabled = true;
+              b.classList.remove("hover:border-indigo-500", "hover:bg-white/10");
+              b.classList.add("cursor-default", "opacity-80");
+            });
+
+            // Highlight selected button & correct option with thick borders & keyframe animations
+            const selectedBtn = interactiveArea.querySelector(`#opt-btn-${selectedIdx}`);
+            const correctBtn = interactiveArea.querySelector(`#opt-btn-${ex.correctIndex}`);
+
+            if (isCorrect) {
+              if (selectedBtn) {
+                selectedBtn.className = "w-full text-left p-4 rounded-2xl border-4 border-emerald-400 bg-emerald-500/30 text-emerald-100 ring-4 ring-emerald-400/50 shadow-xl shadow-emerald-500/30 animate-success-bounce text-sm font-bold flex items-center justify-between";
+                const badge = selectedBtn.querySelector(".opt-badge");
+                if (badge) badge.outerHTML = `<span class="px-3 py-1.5 rounded-xl bg-emerald-500 text-slate-950 font-extrabold text-xs flex items-center gap-1 shadow-lg">✓ ¡CORRECTO!</span>`;
+              }
+
+              feedbackEl.classList.remove("hidden");
+              feedbackEl.className = "p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-sm space-y-1 animate-fade-in";
+              feedbackEl.innerHTML = `
+                <p class="font-bold flex items-center gap-2 text-white">🎉 ¡Respuesta Correcta! (+20 XP)</p>
+                <p class="text-xs text-slate-200">${ex.explanation || ''}</p>
+                ${ex.rule ? `<p class="text-[11px] opacity-80 italic text-emerald-400">Regla: ${ex.rule}</p>` : ''}
+                <p class="text-[11px] text-emerald-300 font-extrabold flex items-center gap-1 pt-1">⚡ Ejercicio registrado automáticamente en tu progreso (${user.completedQuestions.length} resueltos)</p>
+              `;
+              fireStreakConfetti();
+              Notifications.show("¡Respuesta Correcta! +20 XP (Guardado en vivo)", "success");
+            } else {
+              if (selectedBtn) {
+                selectedBtn.className = "w-full text-left p-4 rounded-2xl border-4 border-rose-500 bg-rose-500/30 text-rose-100 ring-4 ring-rose-500/50 shadow-xl animate-shake text-sm font-bold flex items-center justify-between";
+                const badge = selectedBtn.querySelector(".opt-badge");
+                if (badge) badge.outerHTML = `<span class="px-3 py-1.5 rounded-xl bg-rose-500 text-white font-extrabold text-xs flex items-center gap-1 shadow-lg">✗ Tu elección</span>`;
+              }
+
+              if (correctBtn && selectedIdx !== ex.correctIndex) {
+                correctBtn.className = "w-full text-left p-4 rounded-2xl border-4 border-emerald-500/80 bg-emerald-500/20 text-emerald-200 text-sm font-bold flex items-center justify-between";
+                const badge = correctBtn.querySelector(".opt-badge");
+                if (badge) badge.outerHTML = `<span class="px-3 py-1.5 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold text-xs">✓ Respuesta Correcta</span>`;
+              }
+
+              feedbackEl.classList.remove("hidden");
+              feedbackEl.className = "p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-sm space-y-1 animate-fade-in";
+              feedbackEl.innerHTML = `
+                <p class="font-bold flex items-center gap-2 text-white">❌ Respuesta Incorrecta (Registrada para Repaso Espaciado)</p>
+                <p class="text-xs text-slate-200">${ex.explanation || ''}</p>
+                ${ex.rule ? `<p class="text-[11px] opacity-80 italic text-rose-400">Regla: ${ex.rule}</p>` : ''}
+              `;
+              Notifications.show("Respuesta guardada para repaso prioritario", "warning");
+            }
+
+            setupNextButton();
+          };
+        } else if (exType === "ordenar") {
+          // ORDENAR FRAGMENTOS / SECUENCIA
+          const rawParts = ex.parts || ex.options || [];
+          let availableTiles = rawParts.map((text, idx) => ({ idx, text })).sort(() => 0.5 - Math.random());
+          let selectedTiles = [];
+          let isVerified = false;
+
+          const renderOrdering = () => {
+            interactiveArea.innerHTML = `
+              <div class="space-y-6">
+                <!-- Answer / Sequence Assembly Zone -->
+                <div class="space-y-2">
+                  <div class="flex justify-between items-center text-xs font-bold text-slate-300">
+                    <span class="uppercase tracking-wider">Tu secuencia (Haz clic en una ficha para quitarla):</span>
+                    <span class="text-indigo-400 font-extrabold">${selectedTiles.length} / ${rawParts.length} fichas</span>
+                  </div>
+                  <div id="answer-zone" class="min-h-[72px] p-4 rounded-2xl bg-white/5 border-2 border-dashed ${selectedTiles.length === 0 ? 'border-white/20' : 'border-indigo-500/50 bg-indigo-950/20'} flex flex-wrap items-center gap-2.5 transition-all">
+                    ${selectedTiles.length === 0 ? `
+                      <span class="text-xs text-slate-400 italic">Haz clic en las fichas inferiores en el orden correcto para armar la frase...</span>
+                    ` : selectedTiles.map((tile, sIdx) => `
+                      <button data-selected-idx="${sIdx}" class="selected-tile-btn px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-rose-500/80 border border-indigo-400 text-white font-semibold text-xs md:text-sm shadow-md transition-all flex items-center gap-2 group hover:scale-105 animate-fade-in">
+                        <span><strong class="text-indigo-200 group-hover:text-white mr-1">${sIdx + 1}.</strong>${tile.text}</span>
+                        <span class="text-indigo-300 group-hover:text-white text-xs">✕</span>
+                      </button>
+                    `).join('')}
+                  </div>
+                </div>
+
+                <!-- Available Tiles Pool -->
+                <div class="space-y-2">
+                  <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Fichas disponibles:</span>
+                  <div class="flex flex-wrap items-center gap-2.5 p-3 rounded-2xl bg-black/20 border border-white/5 min-h-[56px]">
+                    ${availableTiles.length === 0 ? `
+                      <span class="text-xs text-emerald-400 font-medium">✓ Todas las fichas han sido colocadas</span>
+                    ` : availableTiles.map((tile) => `
+                      <button data-tile-idx="${tile.idx}" class="available-tile-btn px-4 py-2.5 rounded-xl bg-white/10 hover:bg-indigo-500/30 hover:border-indigo-400 border border-white/15 text-slate-200 font-semibold text-xs md:text-sm transition-all shadow-md hover:scale-105 active:scale-95">
+                        ${tile.text}
+                      </button>
+                    `).join('')}
+                  </div>
+                </div>
+
+                <!-- Controls -->
+                <div class="flex items-center justify-between gap-3 pt-2">
+                  <button id="reset-order-btn" class="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 text-xs font-bold transition-all ${selectedTiles.length === 0 ? 'opacity-40 pointer-events-none' : ''}">
+                    🔄 Reiniciar orden
+                  </button>
+                  <button id="verify-order-btn" class="px-6 py-3 rounded-2xl bg-indigo-500 hover:bg-indigo-600 text-white font-extrabold text-xs shadow-lg shadow-indigo-500/20 transition-all ${selectedTiles.length === 0 || isVerified ? 'opacity-50 pointer-events-none' : 'hover:scale-105'}">
+                    Verificar orden
+                  </button>
+                </div>
+              </div>
+            `;
+
+            // Click available tile -> move to selected
+            interactiveArea.querySelectorAll(".available-tile-btn").forEach(btn => {
+              btn.addEventListener("click", () => {
+                if (isVerified) return;
+                const tileIdx = parseInt(btn.getAttribute("data-tile-idx"));
+                const pos = availableTiles.findIndex(t => t.idx === tileIdx);
+                if (pos !== -1) {
+                  const [moved] = availableTiles.splice(pos, 1);
+                  selectedTiles.push(moved);
+                  feedbackEl.classList.add("hidden");
+                  renderOrdering();
+                }
+              });
+            });
+
+            // Click selected tile -> move back to available
+            interactiveArea.querySelectorAll(".selected-tile-btn").forEach(btn => {
+              btn.addEventListener("click", () => {
+                if (isVerified) return;
+                const sIdx = parseInt(btn.getAttribute("data-selected-idx"));
+                if (sIdx >= 0 && sIdx < selectedTiles.length) {
+                  const [removed] = selectedTiles.splice(sIdx, 1);
+                  availableTiles.push(removed);
+                  feedbackEl.classList.add("hidden");
+                  renderOrdering();
+                }
+              });
+            });
+
+            // Reset button
+            const resetBtn = document.getElementById("reset-order-btn");
+            if (resetBtn) {
+              resetBtn.addEventListener("click", () => {
+                if (isVerified) return;
+                availableTiles = rawParts.map((text, idx) => ({ idx, text })).sort(() => 0.5 - Math.random());
+                selectedTiles = [];
+                feedbackEl.classList.add("hidden");
+                renderOrdering();
+              });
+            }
+
+            // Verify button
+            const verifyBtn = document.getElementById("verify-order-btn");
+            if (verifyBtn) {
+              verifyBtn.addEventListener("click", async () => {
+                if (selectedTiles.length === 0 || isVerified) return;
+
+                const userIndices = selectedTiles.map(t => t.idx);
+                const userTexts = selectedTiles.map(t => t.text.trim());
+                const userJoinedSpace = userTexts.join(" ");
+                const userJoinedNoSpace = userTexts.join("");
+
+                let isCorrect = false;
+
+                if (Array.isArray(ex.correctOrder)) {
+                  isCorrect = userIndices.join(",") === ex.correctOrder.join(",");
+                } else if (Array.isArray(ex.correctSequence)) {
+                  const targetSeq = ex.correctSequence.map(s => String(s).trim());
+                  isCorrect = userTexts.join("|") === targetSeq.join("|");
+                } else if (ex.correctText) {
+                  const target = String(ex.correctText).trim();
+                  isCorrect = userJoinedSpace === target || userJoinedNoSpace === target.replace(/\s+/g, "");
+                } else if (ex.answer) {
+                  const target = String(ex.answer).trim();
+                  isCorrect = userJoinedSpace === target || userJoinedNoSpace === target.replace(/\s+/g, "");
+                } else {
+                  isCorrect = userIndices.every((val, i) => val === i);
+                }
+
+                if (isCorrect) {
+                  isVerified = true;
+                  const qKey = getExerciseKey(ex);
+
+                  if (!user.completedQuestions.includes(qKey)) {
+                    user.completedQuestions.push(qKey);
+                  }
+                  user.spacedRepetitionList = user.spacedRepetitionList.filter(item => getExerciseKey(item) !== qKey);
+                  user.commonMistakes = (user.commonMistakes || []).filter(m => getExerciseKey(m) !== qKey);
+
+                  user.xp = (user.xp || 0) + 20;
+                  user.todayMinutesStudied = (user.todayMinutesStudied || 0) + 2;
+
+                  await Auth.saveUser();
+                  await Progress.recordSession({ module: moduleId, score: 100, xpEarned: 20, durationMinutes: 2 });
+
+                  feedbackEl.classList.remove("hidden");
+                  feedbackEl.className = "p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-sm space-y-1 animate-fade-in";
+                  feedbackEl.innerHTML = `
+                    <p class="font-bold flex items-center gap-2 text-white">🎉 ¡Orden Correcto! (+20 XP)</p>
+                    <p class="text-xs text-slate-200">${ex.explanation || 'Has colocado todas las fichas en la secuencia precisa.'}</p>
+                    ${ex.rule ? `<p class="text-[11px] opacity-80 italic text-emerald-400">Regla: ${ex.rule}</p>` : ''}
+                    <p class="text-[11px] text-emerald-300 font-extrabold flex items-center gap-1 pt-1">⚡ Ejercicio registrado automáticamente en tu progreso (${user.completedQuestions.length} resueltos)</p>
+                  `;
+
+                  fireStreakConfetti();
+                  Notifications.show("¡Orden Correcto! +20 XP (Guardado en vivo)", "success");
+                  setupNextButton();
+                  renderOrdering();
+                } else {
+                  feedbackEl.classList.remove("hidden");
+                  feedbackEl.className = "p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-sm space-y-1 animate-fade-in";
+                  feedbackEl.innerHTML = `
+                    <p class="font-bold flex items-center gap-2 text-white">❌ Orden Incorrecto</p>
+                    <p class="text-xs text-slate-200">Revisa la secuencia armada y vuelve a intentarlo haciendo clic en las fichas para ajustar la posición.</p>
+                    ${ex.explanation ? `<p class="text-xs text-slate-300 mt-1">${ex.explanation}</p>` : ''}
+                  `;
+                  Notifications.show("Orden incorrecto, ajusta las fichas e intenta de nuevo", "warning");
+                }
+              });
+            }
+          };
+
+          renderOrdering();
+        } else if (exType === "arrastrar") {
+          // ARRASTRAR / MATCHING
+          const pairs = ex.pairs || [];
+          const terms = pairs.map((p, i) => ({ id: i, text: p.term }));
+          const matches = [...pairs.map((p, i) => ({ id: i, text: p.match }))].sort(() => 0.5 - Math.random());
+
+          let selectedTermId = null;
+          let selectedMatchId = null;
+          const matchedIds = new Set();
+          let errorPair = null;
+
+          const renderMatching = () => {
+            interactiveArea.innerHTML = `
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- Column 1: Terms -->
+                <div class="space-y-2">
+                  <p class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Términos</p>
+                  ${terms.map(t => {
+                    const isMatched = matchedIds.has(t.id);
+                    const isSelected = selectedTermId === t.id;
+                    const isError = errorPair && errorPair.termId === t.id;
+
+                    let btnStyle = "bg-white/5 border-white/10 hover:border-indigo-500 hover:bg-white/10 text-slate-200";
+                    if (isMatched) btnStyle = "bg-emerald-500/20 border-emerald-500/50 text-emerald-300 cursor-default animate-success-bounce";
+                    else if (isError) btnStyle = "bg-rose-500/20 border-rose-500 text-rose-200 animate-shake";
+                    else if (isSelected) btnStyle = "bg-indigo-600/40 border-indigo-400 text-white ring-2 ring-indigo-400/40 shadow-lg";
+
+                    return `
+                      <button data-term-id="${t.id}" class="term-btn w-full text-left p-3.5 rounded-2xl border text-xs font-semibold transition-all flex items-center justify-between ${btnStyle}">
+                        <span>${t.text}</span>
+                        ${isMatched ? '<span class="text-emerald-400 font-bold">✓</span>' : ''}
+                      </button>
+                    `;
+                  }).join('')}
+                </div>
+
+                <!-- Column 2: Matches -->
+                <div class="space-y-2">
+                  <p class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Relación / Función</p>
+                  ${matches.map(m => {
+                    const isMatched = matchedIds.has(m.id);
+                    const isSelected = selectedMatchId === m.id;
+                    const isError = errorPair && errorPair.matchId === m.id;
+
+                    let btnStyle = "bg-white/5 border-white/10 hover:border-indigo-500 hover:bg-white/10 text-slate-200";
+                    if (isMatched) btnStyle = "bg-emerald-500/20 border-emerald-500/50 text-emerald-300 cursor-default animate-success-bounce";
+                    else if (isError) btnStyle = "bg-rose-500/20 border-rose-500 text-rose-200 animate-shake";
+                    else if (isSelected) btnStyle = "bg-indigo-600/40 border-indigo-400 text-white ring-2 ring-indigo-400/40 shadow-lg";
+
+                    return `
+                      <button data-match-id="${m.id}" class="match-btn w-full text-left p-3.5 rounded-2xl border text-xs font-semibold transition-all flex items-center justify-between ${btnStyle}">
+                        <span>${m.text}</span>
+                        ${isMatched ? '<span class="text-emerald-400 font-bold">✓</span>' : ''}
+                      </button>
+                    `;
+                  }).join('')}
+                </div>
+              </div>
+            `;
+
+            interactiveArea.querySelectorAll(".term-btn").forEach(btn => {
+              btn.addEventListener("click", () => {
+                const id = parseInt(btn.getAttribute("data-term-id"));
+                if (matchedIds.has(id) || errorPair) return;
+                selectedTermId = selectedTermId === id ? null : id;
+                checkPairing();
+              });
+            });
+
+            interactiveArea.querySelectorAll(".match-btn").forEach(btn => {
+              btn.addEventListener("click", () => {
+                const id = parseInt(btn.getAttribute("data-match-id"));
+                if (matchedIds.has(id) || errorPair) return;
+                selectedMatchId = selectedMatchId === id ? null : id;
+                checkPairing();
+              });
+            });
+          };
+
+          const checkPairing = async () => {
+            if (selectedTermId !== null && selectedMatchId !== null) {
+              if (selectedTermId === selectedMatchId) {
+                matchedIds.add(selectedTermId);
+                selectedTermId = null;
+                selectedMatchId = null;
+                renderMatching();
+
+                if (matchedIds.size === pairs.length) {
+                  feedbackEl.classList.remove("hidden");
+                  feedbackEl.className = "p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-sm space-y-1 animate-fade-in";
+                  feedbackEl.innerHTML = `
+                    <p class="font-bold flex items-center gap-2 text-white">🎉 ¡Relación de conceptos completada! (+20 XP)</p>
+                    <p class="text-xs text-slate-200">${ex.explanation || 'Has emparejado correctamente todos los términos.'}</p>
+                  `;
+                  await Progress.recordSession({ module: moduleId, score: 100, xpEarned: 20, durationMinutes: 3 });
+                  fireStreakConfetti();
+                  Notifications.show("¡Relación de conceptos completada! +20 XP", "success");
+                  setupNextButton();
+                }
+              } else {
+                errorPair = { termId: selectedTermId, matchId: selectedMatchId };
+                renderMatching();
+                Notifications.show("Pareja incorrecta, intenta de nuevo", "warning");
+
+                setTimeout(() => {
+                  selectedTermId = null;
+                  selectedMatchId = null;
+                  errorPair = null;
+                  renderMatching();
+                }, 700);
+              }
+            } else {
+              renderMatching();
+            }
+          };
+
+          renderMatching();
+        } else if (exType === "flashcards") {
+          // FLASHCARDS
+          const cards = ex.cards || [];
+          let cardIdx = 0;
+          let isFlipped = false;
+          const viewedCards = new Set([0]);
+          let isRecorded = false;
+
+          const renderFlashcard = () => {
+            const card = cards[cardIdx] || { word: "", definition: "", example: "" };
+
+            interactiveArea.innerHTML = `
+              <div class="space-y-4">
+                <div class="flex justify-between items-center text-xs text-slate-400 font-semibold">
+                  <span>Tarjeta ${cardIdx + 1} de ${cards.length}</span>
+                  <span class="text-indigo-400 font-bold">${viewedCards.size} de ${cards.length} vistas</span>
+                </div>
+
+                <div id="flashcard-box" class="min-h-[220px] p-6 rounded-3xl border border-indigo-500/30 bg-gradient-to-br from-indigo-950/60 via-slate-900 to-purple-950/40 backdrop-blur-xl flex flex-col items-center justify-center text-center cursor-pointer space-y-3 transition-all hover:border-indigo-400 shadow-xl relative overflow-hidden group">
+                  ${!isFlipped ? `
+                    <span class="text-xs font-bold uppercase tracking-widest text-indigo-400">Concepto / Palabra</span>
+                    <h3 class="text-2xl md:text-3xl font-extrabold text-white tracking-wide">${card.word}</h3>
+                    <p class="text-xs text-slate-400 font-medium flex items-center gap-1 mt-2">
+                      <span>🔄 Haz clic para voltear y ver la definición</span>
+                    </p>
+                  ` : `
+                    <span class="text-xs font-bold uppercase tracking-widest text-indigo-400">${card.word}</span>
+                    <p class="text-sm md:text-base font-semibold text-slate-100 leading-relaxed max-w-lg">${card.definition}</p>
+                    ${card.example ? `
+                      <div class="p-3 bg-white/5 border border-white/10 rounded-2xl text-xs text-indigo-200 italic max-w-md w-full">
+                        Ejemplo: "${card.example}"
+                      </div>
+                    ` : ''}
+                  `}
+                </div>
+
+                <div class="flex items-center justify-between gap-3 pt-2">
+                  <button id="fc-prev-btn" class="px-4 py-2.5 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-white text-xs font-bold transition-all disabled:opacity-40 disabled:pointer-events-none" ${cardIdx === 0 ? 'disabled' : ''}>
+                    ← Anterior
+                  </button>
+                  <button id="fc-flip-btn" class="px-5 py-2.5 rounded-2xl bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/40 text-indigo-300 text-xs font-bold transition-all flex items-center gap-1.5">
+                    🔄 Voltear
+                  </button>
+                  <button id="fc-next-btn" class="px-4 py-2.5 rounded-2xl bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-bold transition-all shadow-lg shadow-indigo-500/20">
+                    ${cardIdx === cards.length - 1 ? 'Finalizar' : 'Siguiente →'}
+                  </button>
+                </div>
+              </div>
+            `;
+
+            const cardBox = document.getElementById("flashcard-box");
+            const flipBtn = document.getElementById("fc-flip-btn");
+            const prevBtn = document.getElementById("fc-prev-btn");
+            const nextBtnFc = document.getElementById("fc-next-btn");
+
+            const toggleFlip = () => {
+              isFlipped = !isFlipped;
+              viewedCards.add(cardIdx);
+              renderFlashcard();
+              checkCompletion();
+            };
+
+            cardBox.addEventListener("click", toggleFlip);
+            flipBtn.addEventListener("click", (e) => {
+              e.stopPropagation();
+              toggleFlip();
+            });
+
+            prevBtn.addEventListener("click", () => {
+              if (cardIdx > 0) {
+                cardIdx--;
+                isFlipped = false;
+                viewedCards.add(cardIdx);
+                renderFlashcard();
+              }
+            });
+
+            nextBtnFc.addEventListener("click", () => {
+              if (cardIdx < cards.length - 1) {
+                cardIdx++;
+                isFlipped = false;
+                viewedCards.add(cardIdx);
+                renderFlashcard();
+              } else {
+                checkCompletion(true);
+              }
+            });
+          };
+
+          const checkCompletion = async (forceFinish = false) => {
+            if ((viewedCards.size === cards.length || forceFinish) && !isRecorded) {
+              isRecorded = true;
+              feedbackEl.classList.remove("hidden");
+              feedbackEl.className = "p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-sm space-y-1 animate-fade-in";
+              feedbackEl.innerHTML = `
+                <p class="font-bold flex items-center gap-2 text-white">🎉 ¡Repaso con Flashcards completado! (+20 XP)</p>
+                <p class="text-xs text-slate-200">Has revisado todas las tarjetas de vocabulario del módulo.</p>
+              `;
+              await Progress.recordSession({ module: moduleId, score: 100, xpEarned: 20, durationMinutes: 3 });
+              fireStreakConfetti();
+              Notifications.show("¡Repaso con Flashcards completado! +20 XP", "success");
+              setupNextButton();
+            }
+          };
+
+          renderFlashcard();
+        } else if (exType === "memorama") {
+          // MEMORAMA
+          const pairs = ex.pairs || [];
+          const deck = [];
+          pairs.forEach(p => {
+            deck.push({ pairId: p.id, text: p.concept, label: "Concepto" });
+            deck.push({ pairId: p.id, text: p.detail, label: "Definición" });
           });
-        }
-      };
+          deck.sort(() => 0.5 - Math.random());
 
-      // Save Draft Button
-      document.getElementById("save-draft-btn").onclick = async () => {
-        const txt = editorEl.innerText;
-        if (!txt.trim()) {
-          Notifications.show("No hay texto para guardar.", "warning");
-          return;
-        }
-        const m = SmartEditor.getMetrics(txt);
-        await Storage.saveRecord("drafts", {
-          id: `draft_${Date.now()}`,
-          content: txt,
-          savedAt: new Date().toISOString()
-        });
-        await Progress.recordSession({
-          module: "redaccion",
-          wordsWritten: m.words,
-          durationMinutes: 10,
-          xpEarned: 25
-        });
-        fireStreakConfetti();
-        Notifications.show("💾 Borrador guardado correctamente y registrado en tu avance diario.", "success");
-      };
+          let flippedIndices = [];
+          const matchedPairIds = new Set();
+          let isChecking = false;
 
-      // Copy Text Button
-      document.getElementById("copy-text-btn").onclick = () => {
-        const txt = editorEl.innerText;
-        navigator.clipboard.writeText(txt).then(() => {
-          Notifications.show("📋 Texto copiado al portapapeles.", "success");
-        }).catch(() => {
-          Notifications.show("No se pudo copiar el texto.", "error");
-        });
-      };
+          const renderMemorama = () => {
+            interactiveArea.innerHTML = `
+              <div class="space-y-4">
+                <div class="flex justify-between items-center text-xs font-semibold text-slate-400">
+                  <span>Parejas encontradas: ${matchedPairIds.size} de ${pairs.length}</span>
+                  <span class="text-indigo-400 font-bold">${matchedPairIds.size === pairs.length ? '🎉 ¡Completado!' : 'Encuentra las parejas'}</span>
+                </div>
 
-      // Clear Editor Button
-      document.getElementById("clear-editor-btn").onclick = () => {
-        if (confirm("¿Deseas borrar todo el texto del editor?")) {
-          editorEl.innerText = "";
-          updateLiveMetrics();
-          Router.setEditorActive(false);
-          Notifications.show("Editor limpiado.", "info");
-        }
-      };
+                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                  ${deck.map((card, idx) => {
+                    const isMatched = matchedPairIds.has(card.pairId);
+                    const isFlipped = flippedIndices.includes(idx);
 
-      // AI Analyze Button
-      document.getElementById("analyze-ai-btn").onclick = async () => {
-        const text = editorEl.innerText;
-        if (!text.trim()) {
-          Notifications.show("Escribe algún texto antes de analizar.", "warning");
-          return;
-        }
-
-        Notifications.show("Analizando texto con IA...", "info");
-        const res = await AIEngine.evaluateText(text, "redaccion");
-        const m = SmartEditor.getMetrics(text);
-
-        const aiContainer = document.getElementById("ai-feedback-container");
-        aiContainer.innerHTML = `
-          <div class="p-4 bg-indigo-500/10 rounded-2xl border border-indigo-500/30 space-y-2">
-            <div class="flex justify-between items-center font-bold text-sm text-indigo-300">
-              <span>Calificación IA:</span>
-              <span class="text-base">${res.score}/100</span>
-            </div>
-            <p class="text-xs text-slate-200 leading-relaxed">${res.summary}</p>
-          </div>
-
-          <div class="space-y-2 pt-2">
-            <p class="font-bold text-xs uppercase tracking-wider text-slate-400">Sugerencias y Correcciones:</p>
-            ${res.corrections.map(c => `
-              <div class="p-3 rounded-xl bg-white/5 border border-white/10 text-xs space-y-1">
-                <p class="font-semibold text-rose-400">Original: "${c.original}"</p>
-                <p class="font-semibold text-emerald-400">Sugerencia: "${c.suggestion}"</p>
-                <p class="text-[11px] text-slate-400">${c.explanation}</p>
+                    if (isMatched) {
+                      return `
+                        <div class="bg-emerald-500/20 border-2 border-emerald-500/50 text-emerald-200 text-xs font-bold p-3 rounded-2xl h-24 flex flex-col items-center justify-center text-center shadow-lg cursor-default animate-success-bounce">
+                          <span class="text-[10px] uppercase text-emerald-400 font-bold mb-1">${card.label}</span>
+                          <span class="line-clamp-2">${card.text}</span>
+                        </div>
+                      `;
+                    } else if (isFlipped) {
+                      return `
+                        <div class="bg-indigo-600/30 border-2 border-indigo-400 text-white text-xs font-bold p-3 rounded-2xl h-24 flex flex-col items-center justify-center text-center shadow-lg animate-fade-in">
+                          <span class="text-[10px] uppercase text-indigo-300 font-bold mb-1">${card.label}</span>
+                          <span class="line-clamp-2">${card.text}</span>
+                        </div>
+                      `;
+                    } else {
+                      return `
+                        <button data-card-idx="${idx}" class="memo-card-btn bg-indigo-950/80 border border-indigo-500/30 hover:border-indigo-400 text-indigo-400 text-2xl font-bold p-4 rounded-2xl h-24 flex items-center justify-center shadow-md cursor-pointer transition-all hover:scale-105">
+                          🧠
+                        </button>
+                      `;
+                    }
+                  }).join('')}
+                </div>
               </div>
-            `).join('')}
-          </div>
-        `;
+            `;
 
-        await Progress.recordSession({ module: "redaccion", wordsWritten: m.words, score: res.score, xpEarned: 30, durationMinutes: 10 });
+            interactiveArea.querySelectorAll(".memo-card-btn").forEach(btn => {
+              btn.addEventListener("click", () => {
+                const idx = parseInt(btn.getAttribute("data-card-idx"));
+                if (isChecking || flippedIndices.includes(idx) || matchedPairIds.has(deck[idx].pairId)) return;
+
+                flippedIndices.push(idx);
+                renderMemorama();
+
+                if (flippedIndices.length === 2) {
+                  isChecking = true;
+                  const [i1, i2] = flippedIndices;
+
+                  if (deck[i1].pairId === deck[i2].pairId) {
+                    matchedPairIds.add(deck[i1].pairId);
+                    flippedIndices = [];
+                    isChecking = false;
+                    renderMemorama();
+
+                    if (matchedPairIds.size === pairs.length) {
+                      (async () => {
+                        feedbackEl.classList.remove("hidden");
+                        feedbackEl.className = "p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-sm space-y-1 animate-fade-in";
+                        feedbackEl.innerHTML = `
+                          <p class="font-bold flex items-center gap-2 text-white">🎉 ¡Felicidades! Memorama completado con éxito (+20 XP)</p>
+                          <p class="text-xs text-slate-200">Has ejercitado tu memoria y comprensión de conceptos clave.</p>
+                        `;
+                        await Progress.recordSession({ module: moduleId, score: 100, xpEarned: 20, durationMinutes: 3 });
+                        fireStreakConfetti();
+                        Notifications.show("¡Memorama completado con éxito! +20 XP", "success");
+                        setupNextButton();
+                      })();
+                    }
+                  } else {
+                    setTimeout(() => {
+                      flippedIndices = [];
+                      isChecking = false;
+                      renderMemorama();
+                    }, 800);
+                  }
+                }
+              });
+            });
+          };
+
+          renderMemorama();
+        } else if (exType === "ordenar") {
+          // ORDENAR / SEQUENCE EXERCISES
+          const rawParts = ex.parts || ex.options || [];
+          const parts = rawParts.map((p, i) => ({ id: i, text: p }));
+          let placedIndices = [];
+          let isSubmitted = false;
+
+          const renderOrdering = () => {
+            const availableParts = parts.filter(p => !placedIndices.includes(p.id));
+
+            interactiveArea.innerHTML = `
+              <div class="space-y-4">
+                <div class="space-y-2">
+                  <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Tu secuencia:</p>
+                  <div id="placed-chips-container" class="min-h-[60px] p-3.5 rounded-2xl bg-white/5 border border-white/10 flex flex-wrap gap-2 items-center shadow-inner">
+                    ${placedIndices.length === 0 ? `
+                      <span class="text-xs text-slate-400 italic">Haz clic en las palabras/fichas de abajo para formar la secuencia correcta.</span>
+                    ` : placedIndices.map((pIdx, seqPos) => `
+                      <button data-placed-pos="${seqPos}" class="placed-chip-btn px-3.5 py-2 rounded-xl bg-indigo-600/40 border border-indigo-400/50 text-white font-semibold text-xs transition-all hover:bg-rose-500/30 hover:border-rose-400 flex items-center gap-1.5 shadow-md ${isSubmitted ? 'cursor-default' : ''}">
+                        <span>${parts[pIdx].text}</span>
+                        ${!isSubmitted ? '<span class="text-[10px] text-indigo-300">✕</span>' : ''}
+                      </button>
+                    `).join('')}
+                  </div>
+                </div>
+
+                ${!isSubmitted ? `
+                  <div class="space-y-2">
+                    <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Fichas disponibles:</p>
+                    <div class="flex flex-wrap gap-2">
+                      ${availableParts.map(p => `
+                        <button data-part-id="${p.id}" class="avail-chip-btn px-3.5 py-2 rounded-xl bg-white/10 border border-white/10 hover:border-indigo-400 hover:bg-white/20 text-slate-200 font-semibold text-xs transition-all hover:scale-105 shadow-sm">
+                          ${p.text}
+                        </button>
+                      `).join('')}
+                    </div>
+                  </div>
+
+                  <div class="pt-2 flex justify-end gap-2">
+                    ${placedIndices.length > 0 ? `
+                      <button id="reset-order-btn" class="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-slate-300 font-bold text-xs transition-all">
+                        🔄 Reiniciar
+                      </button>
+                    ` : ''}
+                    <button id="verify-order-btn" class="px-5 py-2.5 rounded-2xl bg-indigo-500 hover:bg-indigo-600 text-white font-bold text-xs shadow-lg shadow-indigo-500/20 transition-all ${placedIndices.length < parts.length ? 'opacity-50 pointer-events-none' : 'hover:scale-105'}">
+                      ✓ Verificar Orden
+                    </button>
+                  </div>
+                ` : ''}
+              </div>
+            `;
+
+            if (!isSubmitted) {
+              interactiveArea.querySelectorAll(".avail-chip-btn").forEach(btn => {
+                btn.addEventListener("click", () => {
+                  const id = parseInt(btn.getAttribute("data-part-id"));
+                  placedIndices.push(id);
+                  renderOrdering();
+                });
+              });
+
+              interactiveArea.querySelectorAll(".placed-chip-btn").forEach(btn => {
+                btn.addEventListener("click", () => {
+                  const pos = parseInt(btn.getAttribute("data-placed-pos"));
+                  placedIndices.splice(pos, 1);
+                  renderOrdering();
+                });
+              });
+
+              const resetBtn = document.getElementById("reset-order-btn");
+              if (resetBtn) {
+                resetBtn.addEventListener("click", () => {
+                  placedIndices = [];
+                  renderOrdering();
+                });
+              }
+
+              const verifyBtn = document.getElementById("verify-order-btn");
+              if (verifyBtn) {
+                verifyBtn.addEventListener("click", async () => {
+                  let isCorrect = false;
+                  const userTextSeq = placedIndices.map(i => parts[i].text);
+
+                  if (Array.isArray(ex.correctOrder)) {
+                    if (typeof ex.correctOrder[0] === "number") {
+                      isCorrect = JSON.stringify(placedIndices) === JSON.stringify(ex.correctOrder);
+                    } else {
+                      isCorrect = JSON.stringify(userTextSeq) === JSON.stringify(ex.correctOrder);
+                    }
+                  } else if (Array.isArray(ex.correctSequence)) {
+                    isCorrect = JSON.stringify(userTextSeq) === JSON.stringify(ex.correctSequence);
+                  } else if (ex.correctText || ex.answer) {
+                    const expectedStr = (ex.correctText || ex.answer).trim().toLowerCase();
+                    const userStr = userTextSeq.join(" ").trim().toLowerCase();
+                    isCorrect = userStr === expectedStr || userStr === expectedStr.replace(/[.,;]/g, "");
+                  } else {
+                    isCorrect = placedIndices.every((val, idx) => val === idx);
+                  }
+
+                  isSubmitted = true;
+                  renderOrdering();
+
+                  if (isCorrect) {
+                    feedbackEl.classList.remove("hidden");
+                    feedbackEl.className = "p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-sm space-y-1 animate-fade-in";
+                    feedbackEl.innerHTML = `
+                      <p class="font-bold flex items-center gap-2 text-white">🎉 ¡Orden Correcto! (+20 XP)</p>
+                      <p class="text-xs text-slate-200">${ex.explanation || 'Has ordenado los elementos correctamente.'}</p>
+                    `;
+                    await Progress.recordSession({ module: moduleId, score: 100, xpEarned: 20, durationMinutes: 3 });
+                    fireStreakConfetti();
+                    Notifications.show("¡Orden Correcto! +20 XP", "success");
+                    setupNextButton();
+                  } else {
+                    feedbackEl.classList.remove("hidden");
+                    feedbackEl.className = "p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-sm space-y-1 animate-fade-in flex items-center justify-between flex-wrap gap-2";
+                    feedbackEl.innerHTML = `
+                      <div>
+                        <p class="font-bold flex items-center gap-2 text-white">❌ Orden Incorrecto</p>
+                        <p class="text-xs text-slate-200">${ex.explanation || 'El orden de las palabras no es el adecuado.'}</p>
+                      </div>
+                      <button id="retry-order-btn" class="px-4 py-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-200 font-bold text-xs transition-all">
+                        🔄 Intentar de nuevo
+                      </button>
+                    `;
+                    Notifications.show("Orden incorrecto, intenta de nuevo", "warning");
+
+                    const retryBtn = document.getElementById("retry-order-btn");
+                    if (retryBtn) {
+                      retryBtn.onclick = () => {
+                        isSubmitted = false;
+                        placedIndices = [];
+                        feedbackEl.classList.add("hidden");
+                        renderOrdering();
+                      };
+                    }
+                  }
+                });
+              }
+            }
+          };
+
+          renderOrdering();
+        }
       };
+
+      const initExercises = async () => {
+        if (exercises.length === 0) {
+          container.innerHTML = `
+            <div class="p-6 md:p-8 max-w-3xl mx-auto space-y-6 animate-fade-in text-center">
+              <div class="bg-white/5 backdrop-blur-xl p-10 rounded-3xl border border-indigo-500/30 shadow-2xl space-y-4">
+                <div class="inline-flex p-4 rounded-full bg-indigo-500/20 text-indigo-400 text-4xl animate-bounce">
+                  ✨
+                </div>
+                <h3 class="text-xl font-extrabold text-white">Preparando tus ejercicios de ${moduleInfo.title}...</h3>
+                <p class="text-xs text-slate-300 max-w-md mx-auto leading-relaxed">
+                  Generando un primer ejercicio con Inteligencia Artificial personalizado para este módulo.
+                </p>
+                <div class="w-full bg-white/10 h-1.5 rounded-full overflow-hidden max-w-xs mx-auto">
+                  <div class="bg-indigo-500 h-full rounded-full animate-progress-ripple"></div>
+                </div>
+              </div>
+            </div>
+          `;
+
+          try {
+            const topic = (moduleInfo.lessons && moduleInfo.lessons[0]?.title) || moduleInfo.title;
+            const firstEx = await AIEngine.generateExercise(moduleId, "Principiante", topic);
+            exercises.push(firstEx);
+            renderQuestion();
+          } catch (err) {
+            console.error("Error al preparar ejercicio inicial con IA:", err);
+            Notifications.show("Error al conectar con la IA. Inténtalo de nuevo.", "error");
+          }
+        } else {
+          renderQuestion();
+        }
+      };
+
+      initExercises();
     });
 
-    // 5. TUTOR VIRTUAL VIEW
-    Router.registerRoute("tutor", (container) => {
-      this.setActiveNav("tutor");
-      let chatHistory = [];
-
-      container.innerHTML = `
-        <div class="p-6 md:p-8 max-w-4xl mx-auto space-y-6 animate-fade-in flex flex-col h-[calc(100vh-120px)]">
-          <div class="flex items-center gap-4">
-            <span class="text-4xl">🧙‍♂️</span>
-            <div>
-              <h1 class="text-2xl font-extrabold text-white">Profesor Gramaticus</h1>
-              <p class="text-xs text-slate-300">Tutor Virtual especializado en lingüística, ortografía y redacción.</p>
-            </div>
-          </div>
-
-          <!-- Chat Box -->
-          <div id="tutor-chat-box" class="flex-1 bg-white/5 backdrop-blur-xl rounded-3xl border border-white/10 p-6 overflow-y-auto space-y-4 shadow-xl">
-            <div class="flex gap-3 items-start">
-              <span class="text-2xl">🧙‍♂️</span>
-              <div class="bg-indigo-500/10 border border-indigo-500/20 text-slate-100 p-4 rounded-2xl rounded-tl-none text-sm max-w-lg shadow-sm">
-                ¡Hola! Soy el Profesor Gramaticus. ¿Tienes dudas sobre alguna regla ortográfica, conjugación verbal o estilo de redacción? Haz clic en uno de los temas rápidos abajo o escribe tu consulta.
-              </div>
-            </div>
-          </div>
-
-          <!-- Quick Prompts Pills -->
-          <div class="flex flex-wrap gap-2 pt-1">
-            <button onclick="window.askTutorPill('¿Cuáles son las reglas de acentuación de las palabras esdrújulas?')" class="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-semibold text-indigo-300">
-              📌 Reglas de Acentuación
-            </button>
-            <button onclick="window.askTutorPill('Explicame la diferencia entre sino junto y si no separado con ejemplos.')" class="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-semibold text-indigo-300">
-              📌 Sino vs Si no
-            </button>
-            <button onclick="window.askTutorPill('¿Cuándo se usa B y cuándo se usa V en español?')" class="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-semibold text-indigo-300">
-              📌 Uso de B y V
-            </button>
-            <button onclick="window.askTutorPill('Dame 3 consejos prácticos para mejorar la coherencia de un ensayo.')" class="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-semibold text-indigo-300">
-              📌 Redacción de Ensayos
-            </button>
-          </div>
-
-          <!-- Input Bar -->
-          <form id="tutor-form" class="flex gap-3">
-            <input id="tutor-input" type="text" placeholder="Ej: ¿Cuándo se escribe 'sino' junto y 'si no' separado?" class="flex-1 px-5 py-3.5 rounded-2xl border border-white/10 bg-white/5 text-white placeholder-slate-400 outline-none text-sm shadow-lg focus:border-indigo-500 focus:bg-white/10 transition-all">
-            <button type="submit" class="px-6 py-3.5 rounded-2xl bg-indigo-500 hover:bg-indigo-600 text-white font-bold text-sm shadow-lg shadow-indigo-500/30 transition-all">
-              Enviar
-            </button>
-          </form>
-        </div>
-      `;
-
-      const chatBox = document.getElementById("tutor-chat-box");
-      const form = document.getElementById("tutor-form");
-      const input = document.getElementById("tutor-input");
-
-      const processQuery = async (query) => {
-        if (!query) return;
-
-        // Append User Msg
-        chatBox.innerHTML += `
-          <div class="flex justify-end gap-3 items-start">
-            <div class="bg-indigo-500 text-white p-4 rounded-2xl rounded-tr-none text-sm max-w-lg shadow-md">
-              ${query}
-            </div>
-          </div>
-        `;
-        chatBox.scrollTop = chatBox.scrollHeight;
-
-        // Bot Typing State
-        const loadingId = `load_${Date.now()}`;
-        chatBox.innerHTML += `
-          <div id="${loadingId}" class="flex gap-3 items-start">
-            <span class="text-2xl">🧙‍♂️</span>
-            <div class="bg-white/5 border border-white/10 p-3 rounded-2xl text-xs text-slate-400 italic">
-              Pensando respuesta...
-            </div>
-          </div>
-        `;
-        chatBox.scrollTop = chatBox.scrollHeight;
-
-        const reply = await AIEngine.tutorChat(query, chatHistory);
-        document.getElementById(loadingId)?.remove();
-
-        chatHistory.push({ role: "user", content: query });
-        chatHistory.push({ role: "model", content: reply });
-
-        chatBox.innerHTML += `
-          <div class="flex gap-3 items-start">
-            <span class="text-2xl">🧙‍♂️</span>
-            <div class="bg-indigo-500/10 border border-indigo-500/20 text-slate-100 p-4 rounded-2xl rounded-tl-none text-sm max-w-lg shadow-sm space-y-2">
-              ${reply.replace(/\n/g, '<br>')}
-              <button onclick="Speech.speak('${reply.replace(/'/g, "").replace(/\n/g, " ")}')" class="block text-[11px] font-bold text-indigo-400 hover:text-indigo-300 mt-2">
-                🔊 Escuchar Explicación
-              </button>
-            </div>
-          </div>
-        `;
-        chatBox.scrollTop = chatBox.scrollHeight;
-      };
-
-      form.onsubmit = async (e) => {
-        e.preventDefault();
-        const query = input.value.trim();
-        input.value = "";
-        await processQuery(query);
-      };
-
-      window.askTutorPill = (promptText) => {
-        input.value = promptText;
-        form.dispatchEvent(new Event("submit"));
-      };
+    // 4. MECANOGRAFÍA, TILDACIÓN Y CORRECCIÓN ORTOGRÁFICA VIEW
+    Router.registerRoute("mecanografia", (container) => {
+      this.setActiveNav("mecanografia");
+      MecanografiaEngine.render(container);
     });
+
+    Router.registerRoute("editor", () => Router.navigateTo("mecanografia"));
+    Router.registerRoute("tutor", () => Router.navigateTo("mecanografia"));
 
     // 6. POMODORO & PRODUCTIVIDAD VIEW
     Router.registerRoute("productividad", (container) => {

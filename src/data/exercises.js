@@ -94,7 +94,7 @@ export const EXERCISES_DATABASE = {
       cards: [
         { word: "InEFABLE", definition: "Que no se puede explicar o describir con palabras.", example: "Sintió una alegría inefable al completar su meta." },
         { word: "EFÍMERO", definition: "Que dura muy poco tiempo o es de corta duración.", example: "El resplandor del cometa fue efímero pero deslumbrante." },
-        { word: "PERS PICACIA", definition: "Agudeza y rapidez de la mente para comprender cosas complejas.", example: "Su perspicacia le permitió detectar el error al instante." },
+        { word: "PERSPICACIA", definition: "Agudeza y rapidez de la mente para comprender cosas complejas.", example: "Su perspicacia le permitió detectar el error al instante." },
         { word: "RESILIENCIA", definition: "Capacidad de adaptarse y superar la adversidad.", example: "Su resiliencia inspiró a todo el equipo educativo." }
       ]
     }

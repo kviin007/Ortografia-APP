@@ -40,24 +40,25 @@ export class AIEngine {
     }
   }
 
-  static async generateExercise(module, level, topic) {
+  static async generateExercise(module, level, topic, excludeQuestions = []) {
     try {
       const res = await fetch("/api/ai/generate-exercise", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ module, level, topic })
+        body: JSON.stringify({ module, level, topic, excludeQuestions })
       });
       if (!res.ok) throw new Error("Error generando ejercicio");
       return await res.json();
     } catch (e) {
+      const randId = Math.floor(Math.random() * 1000);
       return {
-        id: `gen_local_${Date.now()}`,
+        id: `gen_local_${Date.now()}_${randId}`,
         module,
         level,
         topic,
         type: "opcion_multiple",
-        question: `¿Cuál es la forma ortográfica correcta para la palabra destacada?`,
-        options: ["Decisión", "Decisión", "Desición", "Decición"],
+        question: `¿Cuál de las siguientes palabras presenta la ortografía correcta? [Variante ${randId}]`,
+        options: ["Decisión", "Desición", "Decición", "Desisión"],
         correctIndex: 0,
         explanation: "'Decisión' se escribe con 'c' en la primera sílaba y 's' en la terminación -sión.",
         rule: "Terminación -sión cuando deriva de palabras que terminan en -so, -sor, -sivo, -sible."
